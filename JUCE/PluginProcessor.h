@@ -99,4 +99,10 @@ private:
     float cached_dry_blend;
     int cached_dry_blend_mode;
     int cached_bit_mask;
+
+    // Factory Presets
+    juce::String* preset_names;
+    char** preset_filenames;
+    int current_programme;
+    const int NUM_PROGRAMMES = 2;
 };

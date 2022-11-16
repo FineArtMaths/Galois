@@ -8,9 +8,14 @@ class WaveformComponent : public juce::Component
 public:
 
     WaveformComponent(Proto_galoisAudioProcessor* ap) {
-        //resolution = 200;
-        //half_resolution = (float)resolution / 2.0;
-        //waveform = new float[resolution];
+        // Load images
+        juce::PNGImageFormat format;
+        juce::MemoryInputStream* mis = new juce::MemoryInputStream(BinaryData::graph_background_png, BinaryData::graph_background_pngSize, false);
+        juce::Image img = format.decodeImage(*mis);
+        delete(mis);
+        wfbgImage.setImage(img);
+        addAndMakeVisible(wfbgImage);
+
         proc = ap;
         setSize(400, 400);
         vDarkGreen = juce::Colour(0, 50, 0);
@@ -37,6 +42,8 @@ public:
     void paint(juce::Graphics& g) override {
 
         g.fillAll(vDarkGreen);
+        wfbgImage.setSize(getWidth(), getHeight());
+        wfbgImage.setTopLeftPosition(0, 0);
 
         // TODO: Why on Earth do we need the 0.995 factor??
         float xscale = getWidth() / (proc->waveform_resolution * 0.995);
@@ -92,7 +99,7 @@ private:
     const char* wf_name;
 
     juce::Label wfNameLabel;
-
+    juce::ImageComponent wfbgImage;
     Proto_galoisAudioProcessor* proc;
 };
 

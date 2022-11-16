@@ -5,9 +5,12 @@
 #include "PluginProcessor.h"
 #include "WaveformComponent.cpp"
 #include "GaloisLookAndFeel.cpp"
+#include <cstdlib>
 
 typedef juce::AudioProcessorValueTreeState::SliderAttachment SliderAttachment;
 typedef juce::AudioProcessorValueTreeState::ButtonAttachment ButtonAttachment;
+
+//#define FACTORY_PRESET_BUTTON
 
 class MainComponent : public juce::Component
 {
@@ -17,11 +20,15 @@ public:
         Proto_galoisAudioProcessor* ap, juce::AudioProcessorValueTreeState& vts
     ) : valueTreeState(vts), wf_component(ap)
     {
+#ifdef FACTORY_PRESET_BUTTON
+
         factoryPresetButton.setButtonText("SAVE");
         addAndMakeVisible(factoryPresetButton);
         factoryPresetButton.onClick = [this] { presetButtonClicked(); };
         factoryPresetNameLabel.setEditable(true);
         addAndMakeVisible(factoryPresetNameLabel);
+
+#endif // FACTORY_PRESET_BUTTON
 
         // Load images
         juce::PNGImageFormat format;
@@ -31,25 +38,38 @@ public:
         logoImage.setImage(img);
         addAndMakeVisible(logoImage);
 
+        mis = new juce::MemoryInputStream(BinaryData::background_png, BinaryData::background_pngSize, false);
+        img = format.decodeImage(*mis);
+        delete(mis);
+        backgroundImage.setImage(img);
+        addAndMakeVisible(backgroundImage);
+        
+
         audioProcessor = ap;
         addAndMakeVisible(wf_component);
 
         makeSlider(waveSlider, waveSliderLabel, "wf_base_wave", waveSliderAttachment);
+        waveSliderLabel.setTooltip("WOOOOT");
         makeSlider(bitDepthSlider, bitDepthSliderLabel, "bit_depth", bitDepthSliderAttachment);
-        makeSlider(powerSlider, powerSliderLabel, "wf_power", powerSliderAttachment);
+        makeSlider(powerSlider, powerSliderLabel, "wf_power", powerSliderAttachment, true);
         makeSlider(harmFreqSlider, harmFreqSliderLabel, "wf_harm_freq", harmFreqSliderAttachment);
-        makeSlider(harmAmtSlider, harmAmtSliderLabel, "wf_harm_amp", harmAmtSliderAttachment);
-        makeSlider(foldSlider, foldSliderLabel, "wf_fold", foldSliderAttachment);
+        makeSlider(harmAmtSlider, harmAmtSliderLabel, "wf_harm_amp", harmAmtSliderAttachment, true);
+        makeSlider(foldSlider, foldSliderLabel, "wf_fold", foldSliderAttachment, true);
         makeSlider(sampleRateSlider, sampleRateSliderLabel, "sample_rate", sampleRateSliderAttachment);
         makeSlider(inputSlider, inputSliderLabel, "input_level", inputSliderAttachment);
         makeSlider(outputSlider, outputSliderLabel, "output_level", outputSliderAttachment);
-        makeSlider(dryBlendSlider, dryBlendSliderLabel, "dry_blend", dryBlendSliderAttachment);
-        makeSlider(bitMaskSlider, bitMaskSliderLabel, "bit_mask", bitMaskSliderAttachment);
+        makeSlider(dryBlendSlider, dryBlendSliderLabel, "dry_blend", dryBlendSliderAttachment, true);
+        makeSlider(bitMaskSlider, bitMaskSliderLabel, "bit_mask", bitMaskSliderAttachment, true);
     }
 
-    void makeSlider(juce::Slider& slider, juce::Label& label, char* param, std::unique_ptr<SliderAttachment>& sa) {
+    void makeSlider(juce::Slider& slider, juce::Label& label, char* param, std::unique_ptr<SliderAttachment>& sa, bool centred=false) {
         addAndMakeVisible(slider);
-        slider.setLookAndFeel(&lookAndFeel);
+        if (centred) {
+            slider.setLookAndFeel(&lookAndFeelCentred);
+        }
+        else {
+            slider.setLookAndFeel(&lookAndFeel);
+        }
         slider.setSliderStyle(juce::Slider::SliderStyle::RotaryVerticalDrag);
         slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, slider.getTextBoxHeight());
 
@@ -80,15 +100,19 @@ public:
        g.setFillType(juce::FillType(juce::Colours::black));
        int line_spacer = knob_size + knob_spacer * 5;
        g.drawRect(
-           wf_component.getWidth() + 20, 
-           2*line_spacer, 
-           getWidth() - wf_component.getWidth() - 30, 
+           wf_component.getWidth() + 20,
+           2*line_spacer,
+           getWidth() - wf_component.getWidth() - 30,
            2
        );
+       char s[10];
+       itoa(audioProcessor->getCurrentProgram(), s, 10);
     }
 
     void resized() override
     {
+        backgroundImage.setSize(getWidth(), getHeight());
+        backgroundImage.setTopLeftPosition(0, 0);
         wf_component.setSize(getHeight() - 20, getHeight() - 20);
         wf_component.setTopLeftPosition(10, 10);
 
@@ -102,14 +126,15 @@ public:
         xpos += knob_size + knob_spacer;
         logoImage.setSize(knob_size*0.9, knob_size * 0.9);
         logoImage.setTopLeftPosition(xpos, 20);
-
+        logoImage.toFront(false);
+#ifdef FACTORY_PRESET_BUTTON
         factoryPresetButton.setSize(knob_size, knob_size/4);
         factoryPresetButton.setTopLeftPosition(xpos , 20);
         factoryPresetButton.toFront(false);
         factoryPresetNameLabel.setSize(knob_size, knob_size/4);
         factoryPresetNameLabel.setTopLeftPosition(xpos, 40);
         factoryPresetNameLabel.toFront(false);
-
+#endif
 
         xpos = wf_component.getWidth() + knob_spacer;
         placeSlider(harmFreqSlider, harmFreqSliderLabel, xpos, 30 + line_spacer);
@@ -143,6 +168,7 @@ private:
     Proto_galoisAudioProcessor* audioProcessor;
     juce::AudioProcessorValueTreeState& valueTreeState;
     GaloisLookAndFeel lookAndFeel;
+    GaloisLookAndFeelCentred lookAndFeelCentred;
 
 
     // Waveform display component
@@ -200,6 +226,7 @@ private:
     int knob_size = 110;
     int knob_spacer = 10;
 
+    juce::ImageComponent backgroundImage;
     juce::ImageComponent logoImage;
     juce::TextButton factoryPresetButton;
     juce::Label factoryPresetNameLabel;

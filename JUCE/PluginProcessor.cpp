@@ -62,6 +62,14 @@ Proto_galoisAudioProcessor::Proto_galoisAudioProcessor()
     tree.addParameterListener("input_level", this);
     tree.addParameterListener("output_level", this);
     tree.addParameterListener("dry_blend", this);
+
+    preset_names = new juce::String[NUM_PROGRAMMES];
+    preset_names[0] = "Init";
+    preset_names[1] = "TestPreset";
+    preset_filenames = new char*[NUM_PROGRAMMES];
+    preset_filenames[0] = "preset_Init_xml";
+    preset_filenames[1] = "preset_TestPreset_xml";
+    current_programme = 0;
 }
 
 
@@ -109,27 +117,37 @@ double Proto_galoisAudioProcessor::getTailLengthSeconds() const
 
 int Proto_galoisAudioProcessor::getNumPrograms()
 {
-    return 2;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
-                // so this should be at least 1, even if you're not really implementing programs.
+    return NUM_PROGRAMMES;
 }
 
 int Proto_galoisAudioProcessor::getCurrentProgram()
 {
-    return 0;
+    return current_programme;
 }
 
 void Proto_galoisAudioProcessor::setCurrentProgram (int index)
 {
+    if (index < 0 || index >= NUM_PROGRAMMES) {
+        return;
+    }
+    current_programme = index;
+    int dataSize = 0;
+    const char* xml = BinaryData::getNamedResource(preset_filenames[index], dataSize);
+    std::unique_ptr<juce::XmlElement> xmlState = juce::XmlDocument(xml).getDocumentElement();
+
+    if (xmlState.get() != nullptr) {    // FAILING HERE
+        if (xmlState->hasTagName(tree.state.getType())) {
+            tree.replaceState(juce::ValueTree::fromXml(*xmlState));
+        }
+    }
 }
 
 const juce::String Proto_galoisAudioProcessor::getProgramName (int index)
 {
-    if (index == 0) {
-        return "Init";
+    if (index < 0 || index >= NUM_PROGRAMMES) {
+        return "ERROR in value of index";
     }
-    else {
-        return "XYZ";
-    }
+    return preset_names[index];
 }
 
 void Proto_galoisAudioProcessor::changeProgramName (int index, const juce::String& newName)
@@ -288,19 +306,24 @@ void Proto_galoisAudioProcessor::setStateInformation (const void* data, int size
 {
     std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
 
-    if (xmlState.get() != nullptr)
-        if (xmlState->hasTagName(tree.state.getType()))
+    if (xmlState.get() != nullptr) {
+        if (xmlState->hasTagName(tree.state.getType())) {
             tree.replaceState(juce::ValueTree::fromXml(*xmlState));
+            current_programme = -1;
+        }
+    }
 }
 
 void Proto_galoisAudioProcessor::saveFactoryPreset(juce::String name) {
     juce::ValueTree t = tree.copyState();
     std::unique_ptr<juce::XmlElement> xml = t.createXml();
-    juce::String fname = "C:\\JUCE\\projects\\proto_galois\\preset_";
+    juce::File dir = juce::File::getSpecialLocation(juce::File::SpecialLocationType::userDocumentsDirectory);
+    juce::String fname = dir.getFullPathName();
+    fname.append("\\preset_", 9);
     fname.append(name, 99);
     fname.append(".xml", 4);
     juce::File f = juce::File(fname);
-    xml->writeTo(*f.createOutputStream());
+    xml->writeTo(f);
 }
 
 //==============================================================================
