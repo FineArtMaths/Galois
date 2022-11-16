@@ -1,21 +1,14 @@
-/*
-  ==============================================================================
-
-    This file contains the basic framework code for a JUCE plugin editor.
-
-  ==============================================================================
-*/
+#pragma once
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
 //==============================================================================
-Proto_galoisAudioProcessorEditor::Proto_galoisAudioProcessorEditor (Proto_galoisAudioProcessor& p)
-    : AudioProcessorEditor (&p), audioProcessor (p)
+Proto_galoisAudioProcessorEditor::Proto_galoisAudioProcessorEditor (Proto_galoisAudioProcessor& p, juce::AudioProcessorValueTreeState& vts)
+    : AudioProcessorEditor (&p), audioProcessor (p), mainComponent(&p, vts), valueTreeState(vts)
 {
-    // Make sure that before the constructor has finished, you've set the
-    // editor's size to whatever you need it to be.
-    setSize (400, 300);
+    setSize (980, 500);
+    addAndMakeVisible(mainComponent);
 }
 
 Proto_galoisAudioProcessorEditor::~Proto_galoisAudioProcessorEditor()
@@ -25,16 +18,12 @@ Proto_galoisAudioProcessorEditor::~Proto_galoisAudioProcessorEditor()
 //==============================================================================
 void Proto_galoisAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    // (Our component is opaque, so we must completely fill the background with a solid colour)
-    g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
-
-    g.setColour (juce::Colours::white);
-    g.setFont (15.0f);
-    g.drawFittedText ("Hello World!", getLocalBounds(), juce::Justification::centred, 1);
+    mainComponent.paint(g);
 }
 
 void Proto_galoisAudioProcessorEditor::resized()
 {
-    // This is generally where you'll want to lay out the positions of any
-    // subcomponents in your editor..
+    mainComponent.setSize(getWidth(), getHeight());
+    mainComponent.setTopLeftPosition(0, 0);
+
 }

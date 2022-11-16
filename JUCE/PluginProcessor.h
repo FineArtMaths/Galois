@@ -14,6 +14,7 @@
 /**
 */
 class Proto_galoisAudioProcessor  : public juce::AudioProcessor
+                            , public juce::AudioProcessorValueTreeState::Listener
                             #if JucePlugin_Enable_ARA
                              , public juce::AudioProcessorARAExtension
                             #endif
@@ -32,6 +33,8 @@ public:
    #endif
 
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    float getWaveformValue(float sample);
 
     //==============================================================================
     juce::AudioProcessorEditor* createEditor() override;
@@ -56,30 +59,44 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    //==============================================================================
+    // Parameters
+    juce::AudioProcessorValueTreeState tree;
+    void parameterChanged(const juce::String& parameterID, float newValue);
+    void cacheWaveforms();
+    const char* getWaveformName();
+
+    float* waveform_cache;
+    const int waveform_resolution = 200;
+
+    void saveFactoryPreset(juce::String name);
+
 private:
     //==============================================================================
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Proto_galoisAudioProcessor)
-    juce::AudioParameterInt* bit_depth;
-    juce::AudioParameterInt* sample_rate;
-    juce::AudioParameterFloat* output_level;
-    juce::AudioParameterFloat* input_level;
-    double host_sample_rate;
-    juce::AudioParameterFloat* reject_dry_amt;
+    float filter(const float input, float* wb_channel, int wb_channel_number, float filter_window);
+    float apply_filter(float sample, float* wb_channel, int wbi);
 
-    juce::AudioBuffer<float> working_buffer;
-    int working_buffer_idx;
+
+    //==============================================================================
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Proto_galoisAudioProcessor)
+    double host_sample_rate;
+
     float sample_reduction_register;
     int sample_reduction_counter;
-    float prev_sample_zero_x_check;
 
-    juce::AudioParameterInt* wf_time_scale;
-    juce::AudioParameterInt* wf_wave;
+    char** blend_mode_names;
 
-    juce::AudioParameterInt* bool_op_and;
-    juce::AudioParameterInt* bool_op_or;
-    juce::AudioParameterInt* bool_op_xor;
-    juce::AudioParameterInt* bool_op_lshift;
-    juce::AudioParameterInt* bool_op_rshift;
-
-    const int MAX_BIT_DEPTH = 1024;
+    // Cached parameter values
+    float cached_bit_depth;
+    int cached_sample_rate;
+    float cached_output_level;
+    float cached_input_level;
+    int cached_wf_base_wave;
+    float cached_wf_power;
+    float cached_wf_fold;
+    float cached_wf_harm_freq;
+    float cached_wf_harm_amp;
+    float cached_dry_blend;
+    int cached_dry_blend_mode;
+    int cached_bit_mask;
 };

@@ -6,6 +6,7 @@
   ==============================================================================
 */
 
+#pragma once
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "Waveform.cpp"
@@ -14,25 +15,55 @@
 //==============================================================================
 Proto_galoisAudioProcessor::Proto_galoisAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
-     : AudioProcessor (BusesProperties()
-                       .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
-                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
-                       )
+    : AudioProcessor(BusesProperties()
+        .withInput("Input", juce::AudioChannelSet::stereo(), true)
+        .withOutput("Output", juce::AudioChannelSet::stereo(), true)
+    )
 #endif
+    , tree(*this, nullptr, "Galois_Parameter_Tree",
+        {
+            std::make_unique<juce::AudioParameterFloat>("bit_depth", "Bit Crush", juce::NormalisableRange<float>(2, MAX_BIT_DEPTH), 2),
+            std::make_unique<juce::AudioParameterInt>("sample_rate", "S & H", 1, 256, 1),
+            std::make_unique<juce::AudioParameterFloat>("output_level", "Output Level", juce::NormalisableRange<float>(0, 4), 1),
+            std::make_unique<juce::AudioParameterFloat>("input_level", "Input Level", juce::NormalisableRange<float>(0, 4), 1),
+            std::make_unique<juce::AudioParameterInt>("wf_base_wave", "Waveform", 0, NUM_WFs - 1, 0),
+            std::make_unique<juce::AudioParameterFloat>("wf_power", "Power", juce::NormalisableRange<float>(-1, 1), 0),
+            std::make_unique<juce::AudioParameterFloat>("wf_fold", "Fold", juce::NormalisableRange<float>(-9, 9), 0),
+            std::make_unique<juce::AudioParameterFloat>("wf_harm_freq", "Harm Freq", juce::NormalisableRange<float>(1, 40), 1),
+            std::make_unique<juce::AudioParameterFloat>("wf_harm_amp", "Harm Amount", juce::NormalisableRange<float>(-10, 10), 0),
+            std::make_unique<juce::AudioParameterFloat>("dry_blend", "Dry Blend", juce::NormalisableRange<float>(-1, 1), 0),
+            std::make_unique<juce::AudioParameterInt>("dry_blend_mode", "Blend Mode", 0, 4, 0),
+            std::make_unique<juce::AudioParameterInt>("bit_mask", "Bit Mask", -1023, 1023, 0)
+        }
+    )
 {
-    addParameter(bit_depth = new juce::AudioParameterInt("bit_depth", "Bit Depth", 2, MAX_BIT_DEPTH, MAX_BIT_DEPTH));
-    addParameter(sample_rate = new juce::AudioParameterInt("sample_rate", "Sample Rate Divider", 1, 256, 1));
-    addParameter(output_level = new juce::AudioParameterFloat("output_level", "Output Level", 0, 5, 1));
-    addParameter(input_level = new juce::AudioParameterFloat("input_level", "Input Level", 0, 5, 1));
-    addParameter(wf_time_scale = new juce::AudioParameterInt("wf_time_scale", "Wave Scale", 1, 20, 1));
-    addParameter(wf_wave = new juce::AudioParameterInt("wf_wave", "Wave Shape", 0, NUM_WFs - 1,    0));
-    addParameter(reject_dry_amt = new juce::AudioParameterFloat("reject_dry_amt", "Reject Dry Amt", -2, 2, 0));
-    addParameter(bool_op_and = new juce::AudioParameterInt("bool_op_and", "AND", 0, MAX_BIT_DEPTH, 0));
-    addParameter(bool_op_or = new juce::AudioParameterInt("bool_op_or", "OR", 0, MAX_BIT_DEPTH, 0));
-    addParameter(bool_op_xor = new juce::AudioParameterInt("bool_op_xor", "XOR", 0, MAX_BIT_DEPTH, 0));
-    addParameter(bool_op_lshift = new juce::AudioParameterInt("bool_op_lshift", "LSHIFT", 0, floor(log(MAX_BIT_DEPTH)/log(2)) * 5, 0));
-    addParameter(bool_op_rshift = new juce::AudioParameterInt("bool_op_rshift", "RSHIFT", 0, floor(log(MAX_BIT_DEPTH) / log(2)), 0));
+
+    sample_reduction_register = 0;
+    sample_reduction_counter = 0;
+
+    blend_mode_names = new char* [5];
+    blend_mode_names[0] = "Add";
+    blend_mode_names[1] = "Multiply";
+    blend_mode_names[2] = "AND";
+    blend_mode_names[3] = "OR";
+    blend_mode_names[4] = "XOR";
+
+    initialize_waveforms();
+    waveform_cache = new float[waveform_resolution];
+    cacheWaveforms();
+    tree.addParameterListener("bit_depth", this);
+    tree.addParameterListener("wf_base_wave", this);
+    tree.addParameterListener("wf_power", this);
+    tree.addParameterListener("wf_fold", this);
+    tree.addParameterListener("wf_harm_freq", this);
+    tree.addParameterListener("wf_harm_amp", this);
+    tree.addParameterListener("bit_mask", this);
+    tree.addParameterListener("sample_rate", this);
+    tree.addParameterListener("input_level", this);
+    tree.addParameterListener("output_level", this);
+    tree.addParameterListener("dry_blend", this);
 }
+
 
 Proto_galoisAudioProcessor::~Proto_galoisAudioProcessor()
 {
@@ -78,7 +109,7 @@ double Proto_galoisAudioProcessor::getTailLengthSeconds() const
 
 int Proto_galoisAudioProcessor::getNumPrograms()
 {
-    return 1;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
+    return 2;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
                 // so this should be at least 1, even if you're not really implementing programs.
 }
 
@@ -93,7 +124,12 @@ void Proto_galoisAudioProcessor::setCurrentProgram (int index)
 
 const juce::String Proto_galoisAudioProcessor::getProgramName (int index)
 {
-    return {};
+    if (index == 0) {
+        return "Init";
+    }
+    else {
+        return "XYZ";
+    }
 }
 
 void Proto_galoisAudioProcessor::changeProgramName (int index, const juce::String& newName)
@@ -103,12 +139,7 @@ void Proto_galoisAudioProcessor::changeProgramName (int index, const juce::Strin
 //==============================================================================
 void Proto_galoisAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    working_buffer = juce::AudioBuffer<float>(2, sampleRate);
-    working_buffer.clear();
-    working_buffer_idx = 0;
-    sample_reduction_register = 0;
-    sample_reduction_counter = 0;
-    prev_sample_zero_x_check = 0;
+    initialize_waveforms();     // set up the array of waveform functions in Waveform.cpp
 }
 
 void Proto_galoisAudioProcessor::releaseResources()
@@ -143,75 +174,95 @@ bool Proto_galoisAudioProcessor::isBusesLayoutSupported (const BusesLayout& layo
 }
 #endif
 
+float scale_sample(float s) {
+    if (abs(s) > 1) {
+        s *= 1.0f / (float)ceil(abs(s));
+    }
+    return s;
+}
+
+float Proto_galoisAudioProcessor::getWaveformValue(
+    float sample) {
+    return remap_sample(
+        sample,
+        cached_wf_base_wave,
+        cached_wf_power,
+        cached_wf_harm_freq,
+        cached_wf_harm_amp,
+        cached_bit_depth,
+        cached_wf_fold,
+        cached_bit_mask
+    );
+}
+
 void Proto_galoisAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
-    bool use_booleans = (bool_op_and->get() + bool_op_or->get() + bool_op_xor->get() + bool_op_lshift->get() + bool_op_rshift->get()) > 0;
-    for (auto i = 0; i < buffer.getNumChannels(); ++i){   
+    int nc = buffer.getNumChannels();
+
+    float db = abs(*tree.getRawParameterValue("dry_blend"));
+    int dbs = sgn(*tree.getRawParameterValue("dry_blend"));
+
+    for (auto i = 0; i < buffer.getNumChannels(); ++i){
         float* channel = buffer.getWritePointer(i);
+        //float* wb_channel = working_buffer.getWritePointer(i);
         for (auto j = 0; j < buffer.getNumSamples(); ++j){
             float sample = channel[j];
+
             // Sample reduction
             sample_reduction_counter++;
-            if (sample_reduction_counter >= sample_rate->get()) {
+            if (sample_reduction_counter >= cached_sample_rate) {
                 sample_reduction_counter = 0;
                 sample_reduction_register = sample;
             }
             else {
                 sample = sample_reduction_register;
             }
+            
             // Input level
-            if (input_level->get() != 1) {
-                sample *= input_level->get();
-            }
-            // Bit reduction
-            if (bit_depth->get() < MAX_BIT_DEPTH) {
-                sample = floor(sample * bit_depth->get()) / bit_depth->get();
-            }
-            // Boolean operations
-            if (use_booleans) {
-                int i_sample = floor(sample * MAX_BIT_DEPTH);
-                if (bool_op_and->get() > 0) {
-                    i_sample = i_sample & bool_op_and->get();
-                }
-                if (bool_op_or->get() > 0) {
-                    i_sample = i_sample | bool_op_or->get();
-                }
-                if (bool_op_xor->get() > 0) {
-                    i_sample = i_sample ^ bool_op_xor->get();
-                }
-                if (bool_op_lshift->get() > 0) {
-                    i_sample = i_sample << bool_op_lshift->get();
-                }
-                if (bool_op_rshift->get() > 0) {
-                    i_sample = i_sample >> bool_op_rshift->get();
-                }
-                sample = (float)i_sample / (float)MAX_BIT_DEPTH;
-                while (abs(sample) >= 1) {
-                    sample *= 0.6;
-                }
-            }
+            sample *= sqrt(cached_input_level);
+
             // Waveform remapping
-            sample = map_to_wf(sample, wf_time_scale->get(), wf_wave->get());
-            // Reject dry
-            if (reject_dry_amt->get() > 0) {
-                sample += -1 * channel[j] * reject_dry_amt->get();
+            sample = getWaveformValue(sample);
+            // Dry Blend
+            sample = dbs * channel[j] * db + sample * (1 - db);
+            sample /= 2;
+/*
+            else if (*tree.getRawParameterValue("dry_blend_mode") == 1) {
+                sample = dbs * channel[j] * db + (channel[j] * sample) * sgn(sample) * (1 - db);
             }
-            // Zero crossing check
-            if (sgn(sample) != 0 && sgn(prev_sample_zero_x_check) != 0 && sgn(sample) != sgn(prev_sample_zero_x_check)) {
-                prev_sample_zero_x_check = sample;
-                sample = 0;
+            else if (*tree.getRawParameterValue("dry_blend_mode") == 2) {
+                int a = floor(dbs * channel[j] * db * MAX_BIT_DEPTH);
+                int b = floor(sample * (1 - db) * MAX_BIT_DEPTH);
+                sample = float(a & b) / float(MAX_BIT_DEPTH);
             }
-            // Output Level and clipping
-            sample *= output_level->get();
-            sample = clamp(sample, -1, 1);
+            else if (*tree.getRawParameterValue("dry_blend_mode") == 3) {
+                int a = floor(dbs * channel[j] * db * MAX_BIT_DEPTH);
+                int b = floor(sample * (1 - db) * MAX_BIT_DEPTH);
+                sample = float(a | b) / float(MAX_BIT_DEPTH);
+            }
+            else if (*tree.getRawParameterValue("dry_blend_mode") == 4) {
+                int a = floor(dbs * channel[j] * db * MAX_BIT_DEPTH);
+                int b = floor(sample * (1 - db) * MAX_BIT_DEPTH);
+                sample = float(a ^ b) / float(MAX_BIT_DEPTH);
+            }
+  */        
+
+            // Output Level             
+            sample *= cached_output_level;
+            sample *= 0.99;
             channel[j] = sample;
+     
         }
-        working_buffer_idx++;
-        working_buffer_idx %= buffer.getNumSamples();
     }
+}
+
+const char* Proto_galoisAudioProcessor::getWaveformName() {
+    int i = (int)*tree.getRawParameterValue("wf_base_wave");
+    return wf_names[i];
+
 }
 
 //==============================================================================
@@ -222,21 +273,34 @@ bool Proto_galoisAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* Proto_galoisAudioProcessor::createEditor()
 {
-    return new Proto_galoisAudioProcessorEditor (*this);
+    return new Proto_galoisAudioProcessorEditor (*this, tree);
 }
 
 //==============================================================================
 void Proto_galoisAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
+    auto state = tree.copyState();
+    std::unique_ptr<juce::XmlElement> xml(state.createXml());
+    copyXmlToBinary(*xml, destData);
 }
 
 void Proto_galoisAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
+    std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
+
+    if (xmlState.get() != nullptr)
+        if (xmlState->hasTagName(tree.state.getType()))
+            tree.replaceState(juce::ValueTree::fromXml(*xmlState));
+}
+
+void Proto_galoisAudioProcessor::saveFactoryPreset(juce::String name) {
+    juce::ValueTree t = tree.copyState();
+    std::unique_ptr<juce::XmlElement> xml = t.createXml();
+    juce::String fname = "C:\\JUCE\\projects\\proto_galois\\preset_";
+    fname.append(name, 99);
+    fname.append(".xml", 4);
+    juce::File f = juce::File(fname);
+    xml->writeTo(*f.createOutputStream());
 }
 
 //==============================================================================
@@ -244,4 +308,33 @@ void Proto_galoisAudioProcessor::setStateInformation (const void* data, int size
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new Proto_galoisAudioProcessor();
+}
+
+//==============================================================================
+// Cache the waveform here
+void Proto_galoisAudioProcessor::parameterChanged(const juce::String& parameterID, float newValue) {
+    cacheWaveforms();
+}
+
+void Proto_galoisAudioProcessor::cacheWaveforms() {
+    cached_bit_depth = *tree.getRawParameterValue("bit_depth");
+    cached_sample_rate = *tree.getRawParameterValue("sample_rate");
+    cached_output_level = *tree.getRawParameterValue("output_level");
+    cached_output_level = pow(cached_output_level * ROOT_2, 2);
+    cached_input_level = *tree.getRawParameterValue("input_level");
+    cached_input_level = pow(cached_input_level * ROOT_2, 2);
+    cached_wf_base_wave = *tree.getRawParameterValue("wf_base_wave");
+    cached_wf_power = *tree.getRawParameterValue("wf_power");
+    cached_wf_fold = *tree.getRawParameterValue("wf_fold");
+    cached_wf_harm_freq = *tree.getRawParameterValue("wf_harm_freq");
+    cached_wf_harm_amp = *tree.getRawParameterValue("wf_harm_amp");
+    cached_dry_blend = *tree.getRawParameterValue("dry_blend");
+    cached_dry_blend_mode = *tree.getRawParameterValue("dry_blend_mode");
+    cached_bit_mask = *tree.getRawParameterValue("bit_mask");
+
+    float waveform_resolution_half = (float)waveform_resolution / 2;
+    for (int i = 0; i < waveform_resolution; i++) {
+        float amp = (float)(i - waveform_resolution_half) / waveform_resolution_half;
+        waveform_cache[i] = getWaveformValue(amp);
+    }
 }

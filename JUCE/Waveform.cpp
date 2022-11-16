@@ -1,30 +1,21 @@
 /*
 	A waveform is an array of WF_LEN floating-point values between 0 and 1.
 */
+#pragma once
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include<string>
 
-const int WF_LEN = 1024;
-const double WF_LEN_DOUBLE = (double)(WF_LEN);
 const float PI = 2 * acos(0.0);
-const double PI_STEP = 2 * PI / WF_LEN;
-int IS_INITIALIZED = 0;
+const float TWO_PI = 2 * PI;
+const float ROOT_2 = sqrt(2);
+const int MAX_BIT_DEPTH = 1024;
+const float MAX_BIT_DEPTH_F = (float)MAX_BIT_DEPTH;
 
-//===================================================
-/// UTILITY FUNCTIONS
-//===================================================
 
-int sample_to_WFPosn(const float sample, const int time_scale) {
-	int val = floor((sample + 1) * (WF_LEN / 2));
-	if (time_scale % 2 == 1) {
-		val = (val * time_scale) % WF_LEN;
-	}
-	else {
-		val = (WF_LEN - (val * time_scale) % WF_LEN) - 1;
-	}
-	return val;
-}
+//=======================================
+// Utilities
+//=======================================
 
 float clamp(float val, float min, float max) {
 	if (val > max) {
@@ -42,124 +33,408 @@ int sgn(double v) {
 	return 0;
 }
 
-//===================================================
-/// WAVEFORM DEFINITIONS
-//===================================================
+float ease_side_max = 5;
 
-// LINEAR
-const float* build_linear() {
-	float* wf = new float[WF_LEN];
-	for (int i = 0; i < WF_LEN; i++) {
-		double i_d = static_cast<double>(i);
-		float val = 2.0f * (i_d - WF_LEN_DOUBLE/2.0f) / WF_LEN_DOUBLE;
-		//float val = 2 * (i_d / WF_LEN_DOUBLE) - 1;
-		wf[i] = val;
+float ease_side(float sample, float amount) {
+	sample = (sample + 1) / 2;	// map to [0, 1]
+	if (amount == 0) {
+		amount = 1;
 	}
-	return wf;
+	else if (sgn(amount) == 1) {
+		amount = (amount * ease_side_max) + 1;	// map to [1, ease_side_max]
+	}
+	else {
+		amount = 1 + (amount + 1/ease_side_max);
+	}
+	sample = pow(sample, amount);
+	sample = (sample * 2) - 1;	// map back to [-1, 1]
+	return sample;
 }
 
-// COSINE
-const float* build_cosine() {
-	float* wf = new float[WF_LEN];
-	for (int i = 0; i < WF_LEN; i++) {
-		wf[i] = -1 * cos(i * PI_STEP / 2);
-	}
-	return wf;
+float ease_centre(float sample, float amount) {
+	int sign = sgn(sample);
+	sample = abs(sample);
+
+	amount = (amount + 1) / 2;
+	amount *= 5;
+
+	sample = abs(pow(sample, amount));
+	sample *= sign;
+
+	return sample;
 }
 
-// QUADRATIC
-const float* build_quadratic() {
-	float* wf = new float[WF_LEN];
-	for (int i = 0; i < WF_LEN; i++) {
-		double i_d = static_cast<double>(i);
-		float val = 2 * pow(i_d / WF_LEN_DOUBLE, 2) - 1;
-		val = clamp(val, -1, 1);
-		wf[i] = val;
-	}
-	return wf;
+float scaler(float in, float out) {
+	float scale = 2*(0.5 - abs(abs(in) - 0.5));
+	return in + scale * out;
 }
 
-// TANH
-const float* build_tanh() {
-	float* wf = new float[WF_LEN];
-	for (int i = 0; i < WF_LEN; i++) {
-		wf[i] = tanh(i * PI_STEP - PI);
-	}
-	return wf;
+float expando(float in, float out) {
+	return in * abs(out);
 }
 
-// QUAD HARM VARIANTS
-const float* build_qharm(int freq) {
-	float* wf = new float[WF_LEN];
-	for (int i = 0; i < WF_LEN; i++) {
-		double i_d = static_cast<double>(i);
-		float val = (2 * pow(i_d / WF_LEN, 2) - 1) * 0.95f;
-		float amp = 1 - pow(abs(val), 2);
-		val += cos(PI_STEP * i * freq) * 0.2 * amp;
-		wf[i] = val;
-	}
-	return wf;
-}
-
-// SCOOP HARM VARIANTS
-const float* build_sharm(int freq) {
-	float* wf = new float[WF_LEN];
-	for (int i = 0; i < WF_LEN; i++) {
-		double i_d = static_cast<double>(i);
-		float val = abs(sin(1.5f * PI_STEP * i / 2.0f)) * 2.0f - 1;
-		if (freq > 0) {
-			float amp = 1 - pow(abs(val), 2);
-			val += cos(PI_STEP * i * freq) * 0.2 * amp;
+float fold(float sample) {
+	if (sample > 0) {
+		if (sample > 2) {
+			sample -= floor(sample - 1);
 		}
-		wf[i] = val;
+		if (sample > 1) {
+			sample = 1 - (sample - 1);
+		}
 	}
-	return wf;
+	else if(sample < 0) {
+		if (sample < -2) {
+			sample += floor(abs(sample) - 1);
+		}
+		if (sample < -1) {
+			sample = -1 - (sample + 1);
+		}
+	}
+	return sample * 0.95;
 }
 
-// ASIN
-const float* build_asin() {
-	float* wf = new float[WF_LEN];
-	for (int i = 0; i < WF_LEN; i++) {
-		wf[i] = asin((2 * i / (WF_LEN - 1)) - 1) / (PI / 2);
-	}
-	return wf;
+//=======================================
+// Functions
+//=======================================
+
+float w_identity(float sample) {
+	return sample;
 }
 
-const int NUM_WFs = 15;
-const float** waveforms = 0;
-char* names[NUM_WFs] = { 
-	"Linear", "Cosine", "Quadratic", "Tanh", 
-	"QHarm 1", "QHarm 2", "QHarm 4", "QHarm 8", 
-	"Scoop", "SHarm 2", "SHarm 4", "SHarm 8", "SHarm 16", "SHarm 32",
-	"Asin"
+float w_cosine(float sample) {
+	return cos(3 * PI / 2 + sample * PI / 2);
+}
+
+float w_tanh(float sample) {
+	return tanh(sample * PI);
+}
+
+float w_scoop(float sample) {
+	return scaler(sample, abs(sin(1.5 * PI * (sample + 1) / 2)) * 2 - 1) * 0.85;
+}
+
+float w_asin(float sample) {
+	return 2 * asin(sample) / PI;
+}
+
+float w_cosstep(float sample) {
+	return scaler(sample, cos(2*sample)/2);
+}
+
+float w_sinstep(float sample) {
+	return scaler(sample, sin(-2 * sample) / 2);
+}
+
+float w_sinfold(float sample) {
+	return fold(scaler(sample, abs(sin(4*sample))));
+}
+
+float w_bigcos(float sample) {
+	float a = cos(9 * sample * sample);
+	return fold(scaler(sample, a));
+}
+
+float w_shcos(float sample) {
+	float a = sinh(sample) + cos(9 * sample * sample);
+	return fold(scaler(sample, a));
+}
+
+float w_thcos(float sample) {
+	float a = cos(9 * sample * sample) - tanh(5*sample);
+	return fold(scaler(sample, a));
+}
+
+float w_fm1(float sample) {
+	float a = 2*cos(sin(4*sample) + cos(2*sample - 1));
+	return fold(scaler(sample, a));
+}
+
+float w_xp_sin(float sample) {
+	float a = abs(2*sin(2*PI*sample)) - 1;
+	return expando(sample, a);
+}
+
+float w_xp_cos(float sample) {
+	float a = abs(1.5 * cos(2 * PI * sample)) - 1;
+	return expando(sample, a);
+}
+
+float w_xp_sin_cos(float sample) {
+	float a = abs(pow(sin(pow(cos(2 * PI * sample), 2)), 3)) * 1.6;
+	return expando(sample, a);
+}
+
+float w_quadscale(float sample) {
+	float a = scaler(sample, 2*sample*sample + sample);
+	return fold(a);
+}
+
+float w_blancmange(float sample) {
+	float a = scaler(-1*abs(0.3*sample), sin(-1*abs(0.3*sample))+0.5*pow(-1*abs(sample) + 2, 2)) * 6;
+	return fold(a);
+}
+
+float w_foldscale(float sample) {
+	float a = scaler(sample, sample);
+	return fold(a);
+}
+
+float w_xpandoscale(float sample) {
+	float a = expando(2*sample, scaler(sample, sample));
+	return fold(a);
+}
+
+float w_archer1(float sample) {
+	float a = scaler(-abs(sample), sample) * -1 * sgn(sample);
+	return fold(a);
+}
+
+float w_archer2(float sample) {
+	float a = scaler(abs(1.7*sample), 2*sample*sample)*0.9;
+	return fold(a);
+}
+
+float w_archer3(float sample) {
+	float s = 0.7 * sample + 0.2;
+	float a = scaler(2*s, 1/cos(s));
+	return fold(expando(sample, a));
+}
+
+float w_biscaler1(float sample) {
+	float a = scaler(sample*sample*sample, scaler(sample, sample));
+	return fold(a);
+}
+
+float w_biscaler2(float sample) {
+	float a = scaler(-abs(sample), scaler(sample, cos(sample)));
+	return fold(a);
+}
+
+float w_biscaler3(float sample) {
+	float a = expando(sample, cos(sample * TWO_PI));
+	return fold(a);
+}
+
+float w_rhizome(float sample) {
+	float a = scaler(abs(sample), 2.5*sample);
+	return fold(a);
+}
+
+float w_cadmium(float sample) {
+	float a = expando(sample, scaler(abs(sample), 2 * sample / cos(sample + PI)));
+	return fold(a);
+}
+
+float w_flotilla(float sample) {
+	float a = scaler(sample, abs(expando(sample + 2, sample - 1)));
+	return fold(a);
+}
+
+float w_quartic(float sample) {
+	float a = scaler(sample, abs(expando(sample + 2, sample - 1)));
+	return fold(a);
+}
+
+float w_cubic(float sample) {
+	float a = scaler(sample * sample * sample, sample);
+	return fold(a);
+}
+
+float w_cubiccos(float sample) {
+	float a = scaler(sample*sample, cos(sample)/pow(sample + 2, 2)) * 2 - 1;
+	return fold(expando(sample, a));
+}
+
+float w_cubicquad(float sample) {
+	float a = scaler(sample * sample * sample, 1 - sample*sample);
+	return fold(a);
+}
+
+float w_cubicratio1(float sample) {
+	float a = scaler(abs(sample*sample*sample), 2/(2 + sample * sample));
+	return fold(a);
+}
+
+float w_cubicratio2(float sample) {
+	float a = scaler(2*abs(sample * sample), sample/4) * 2 - 1;
+	return fold(expando(sample, a));
+}
+
+float w_cubicratio3(float sample) {
+	float a = scaler(sample * sample, sample / pow(sample + 1.5, 2)) * -2 + 1;
+	return fold(expando(sample, a));
+}
+
+float w_cubicratio4(float sample) {
+	float a = scaler(0.5 * sample, sample + 3) -0.5;
+	return fold(expando(sample, a));
+}
+
+//=======================================
+// Function Pointer list
+//======================================
+
+const int NUM_WFs = 31;
+float (*ptr[NUM_WFs]) (float sample);
+bool INITIALIZED = false;
+
+void initialize_waveforms() {
+	if (INITIALIZED) {
+		return;
+	}
+	ptr[0] = w_identity;
+	ptr[1] = w_cosine;
+	ptr[2] = w_tanh;
+	ptr[3] = w_asin;
+	ptr[4] = w_cosstep;
+	ptr[5] = w_sinstep;
+	ptr[6] = w_archer1;
+	ptr[7] = w_biscaler1;
+	ptr[8] = w_cadmium;
+	ptr[9] = w_biscaler3;
+	ptr[10] = w_sinfold;
+	ptr[11] = w_scoop;
+	ptr[12] = w_bigcos;
+	ptr[13] = w_shcos;
+	ptr[14] = w_thcos;
+	ptr[15] = w_xp_sin;
+	ptr[16] = w_xp_cos;
+	ptr[17] = w_xp_sin_cos;
+	ptr[18] = w_quadscale;
+	ptr[19] = w_blancmange;
+	ptr[20] = w_foldscale;
+	ptr[21] = w_xpandoscale;
+	ptr[22] = w_archer3;
+	ptr[23] = w_biscaler2;
+	ptr[24] = w_rhizome;
+	ptr[25] = w_flotilla;
+	ptr[26] = w_cubic;
+	ptr[27] = w_cubicquad;
+	ptr[28] = w_cubicratio1;	
+	ptr[29] = w_cubicratio2;
+	ptr[30] = w_cubicratio4;
+}
+
+const char* wf_names[NUM_WFs] = {
+	"Identity",
+	"Cosine",
+	"Tanh",
+	"Arcsine",
+	"Mondegreen",
+	"Xanthoria",		//5
+	"Natronomonas",
+	"Gorgonian",
+	"Vassago",
+	"Phenex",
+	"Squamous",			//10
+	"Varahi",
+	"Deltoid",
+	"Strix",
+	"Ergot",
+	"Miasma",			//15
+	"Inglip",
+	"Qiupalong",
+	"Archery",
+	"Larkspur",			
+	"Dolmen",
+	"Rhizome",
+	"Cadmium",			
+	"Coldharbour",
+	"Atabeg",
+	"Nocebo",
+	"Bakelite",
+	"Irvine",			
+	"Calliope",
+	"Arctic",
+	"Voile"
 };
 
-void init() {
-	waveforms = new const float* [NUM_WFs];
-	waveforms[0] = build_linear();
-	waveforms[1] = build_cosine();
-	waveforms[2] = build_quadratic();
-	waveforms[3] = build_tanh();
-	waveforms[4] = build_qharm(1);
-	waveforms[5] = build_qharm(2);
-	waveforms[6] = build_qharm(4);
-	waveforms[7] = build_qharm(8);
-	waveforms[8] = build_sharm(0);
-	waveforms[9] = build_sharm(2);
-	waveforms[10] = build_sharm(4);
-	waveforms[11] = build_sharm(8);
-	waveforms[12] = build_sharm(16);
-	waveforms[13] = build_sharm(32);
-	waveforms[14] = build_asin();
-	IS_INITIALIZED = 1;
-}
+//=======================================
+// Waveform Calculation
+//=======================================
 
-const float map_to_wf(const float sample, const int time_scale, const int wfi) {
-	if (IS_INITIALIZED == 0) {
-		init();
+float remap_sample(
+	float sample, 
+	int wf, 
+	float power,
+	float harm_freq, float harm_amp, float bit_depth,
+	float fold_amt,
+	int mask
+) {	
+
+	if (sample == 0) {
+		return 0;	// All waveforms should do this, but some glitch out at 0 with extreme values.
 	}
-	const float* wf = waveforms[wfi];
-	float val = wf[sample_to_WFPosn(sample, time_scale)];
-	return clamp( val, -1, 1);
+	// Base waveform
+	float val = (*ptr[wf])(sample);
+
+	// Bit mask
+	int intval = floor(abs(val) * MAX_BIT_DEPTH);
+	if (mask > 0) {
+		intval ^= mask;
+		val = sgn(val) * (float)intval / MAX_BIT_DEPTH_F;
+	}
+	else if (mask < 0) {
+		mask = -1 * mask;
+		mask = MAX_BIT_DEPTH - 1 - mask;
+		intval &= mask;
+		val = sgn(val) * (float)intval / MAX_BIT_DEPTH_F;
+	}
+
+	// Power
+	if (power == 0) {
+		power = 1;
+	} else {
+		power *= -1;
+		if (power < 0) {
+			power = 1 + power;
+		}
+		else {
+			power *= 10;
+			power += 1;
+		}
+		float pval = pow(abs(val), power);
+		if (sgn(val) != sgn(pval)) {
+			val = pval * -1;
+		}
+		else {
+			val = pval;
+		}
+	}
+
+	// Harmonics
+	if (harm_amp > 0) {
+		float amp = (1 - pow(abs(val), 2)) * harm_amp;
+		val += sin(sample * PI * harm_freq) * 0.2 * amp;
+	} else if (harm_amp < 0) {
+		harm_amp *= -1;
+		float amp = (1 - pow(1 - abs(val), 2)) * harm_amp;
+		val += sin(sample * PI * harm_freq) * 0.2 * amp;
+	}
+
+	// Bit reduction
+	if (bit_depth > 2) {
+		float bd = MAX_BIT_DEPTH_F - abs(bit_depth) + 2;
+		bd /= MAX_BIT_DEPTH_F;
+		bd = bd * bd * bd;
+		bd *= MAX_BIT_DEPTH_F;
+		val = sgn(val) * float(floor(abs(val) * bd) / bd);
+	}
+
+	// Fold
+	if (fold_amt > 0) {
+		fold_amt += 1;
+		val = fold(val * fold_amt);
+	}
+	else if (fold_amt < 0) {
+		fold_amt -= 0.5;
+		fold_amt *= 3;
+		val = fold(sin(-val * fold_amt));
+	}
+
+	// Clamp to valid range
+	val = clamp(val, -1, 1);
+
+	return val;
 }
 
