@@ -38,11 +38,11 @@ public:
         logoImage.setImage(img);
         addAndMakeVisible(logoImage);
 
-        mis = new juce::MemoryInputStream(BinaryData::background_png, BinaryData::background_pngSize, false);
-        img = format.decodeImage(*mis);
-        delete(mis);
-        backgroundImage.setImage(img);
-        addAndMakeVisible(backgroundImage);
+    //    mis = new juce::MemoryInputStream(BinaryData::background_png, BinaryData::background_pngSize, false);
+    //    img = format.decodeImage(*mis);
+    //    delete(mis);
+    //    backgroundImage.setImage(img);
+    //    addAndMakeVisible(backgroundImage);
         
 
         audioProcessor = ap;
@@ -95,7 +95,7 @@ public:
     }
 
     void paint(juce::Graphics& g) {
-       wf_component.updateWaveform();
+        wf_component.updateWaveform();
        g.setColour(juce::Colours::black);
        g.setFillType(juce::FillType(juce::Colours::black));
        int line_spacer = knob_size + knob_spacer * 5;
@@ -105,14 +105,15 @@ public:
            getWidth() - wf_component.getWidth() - 30,
            2
        );
-       char s[10];
-       itoa(audioProcessor->getCurrentProgram(), s, 10);
+       //char s[10];
+       //itoa(audioProcessor->getCurrentProgram(), s, 10);
     }
 
     void resized() override
     {
-        backgroundImage.setSize(getWidth(), getHeight());
-        backgroundImage.setTopLeftPosition(0, 0);
+//        backgroundImage.setSize(getWidth(), getHeight());
+//        backgroundImage.setTopLeftPosition(0, 0);
+
         wf_component.setSize(getHeight() - 20, getHeight() - 20);
         wf_component.setTopLeftPosition(10, 10);
 
@@ -170,7 +171,6 @@ private:
     GaloisLookAndFeel lookAndFeel;
     GaloisLookAndFeelCentred lookAndFeelCentred;
 
-
     // Waveform display component
     WaveformComponent wf_component;
 
@@ -226,7 +226,7 @@ private:
     int knob_size = 110;
     int knob_spacer = 10;
 
-    juce::ImageComponent backgroundImage;
+//    juce::ImageComponent backgroundImage;
     juce::ImageComponent logoImage;
     juce::TextButton factoryPresetButton;
     juce::Label factoryPresetNameLabel;

@@ -48,6 +48,21 @@ Proto_galoisAudioProcessor::Proto_galoisAudioProcessor()
     preset_filenames[0] = "preset_Init_xml";
     preset_filenames[1] = "preset_TestPreset_xml";
     current_programme = 0;
+
+    initialize_waveforms();
+    waveform_cache = new float[waveform_resolution];
+    cacheWaveforms();
+    tree.addParameterListener("bit_depth", this);
+    tree.addParameterListener("wf_base_wave", this);
+    tree.addParameterListener("wf_power", this);
+    tree.addParameterListener("wf_fold", this);
+    tree.addParameterListener("wf_harm_freq", this);
+    tree.addParameterListener("wf_harm_amp", this);
+    tree.addParameterListener("bit_mask", this);
+    tree.addParameterListener("sample_rate", this);
+    tree.addParameterListener("input_level", this);
+    tree.addParameterListener("output_level", this);
+    tree.addParameterListener("dry_blend", this);
 }
 
 
@@ -99,7 +114,7 @@ double Proto_galoisAudioProcessor::getTailLengthSeconds() const
 
 int Proto_galoisAudioProcessor::getNumPrograms()
 {
-    return 1; // NUM_PROGRAMMES;
+    return NUM_PROGRAMMES;
 }
 
 int Proto_galoisAudioProcessor::getCurrentProgram()
@@ -130,6 +145,7 @@ const juce::String Proto_galoisAudioProcessor::getProgramName (int index)
         return "ERROR in value of index";
     }
     return preset_names[index];
+    return juce::String("");
 }
 
 void Proto_galoisAudioProcessor::changeProgramName (int index, const juce::String& newName)
@@ -141,22 +157,6 @@ void Proto_galoisAudioProcessor::prepareToPlay (double sampleRate, int samplesPe
 {
     host_sample_rate = getSampleRate();
     sample_reduction_register = new float[getNumInputChannels()];
-
-    initialize_waveforms();
-    waveform_cache = new float[waveform_resolution];
-    cacheWaveforms();
-
-    tree.addParameterListener("bit_depth", this);
-    tree.addParameterListener("wf_base_wave", this);
-    tree.addParameterListener("wf_power", this);
-    tree.addParameterListener("wf_fold", this);
-    tree.addParameterListener("wf_harm_freq", this);
-    tree.addParameterListener("wf_harm_amp", this);
-    tree.addParameterListener("bit_mask", this);
-    tree.addParameterListener("sample_rate", this);
-    tree.addParameterListener("input_level", this);
-    tree.addParameterListener("output_level", this);
-    tree.addParameterListener("dry_blend", this);
 }
 
 void Proto_galoisAudioProcessor::releaseResources()
