@@ -62,7 +62,7 @@ public:
         makeSlider(bitMaskSlider, bitMaskSliderLabel, "bit_mask", bitMaskSliderAttachment, true);
     }
 
-    void makeSlider(juce::Slider& slider, juce::Label& label, char* param, std::unique_ptr<SliderAttachment>& sa, bool centred=false) {
+    void makeSlider(juce::Slider& slider, juce::Label& label, const char* param, std::unique_ptr<SliderAttachment>& sa, bool centred=false) {
         addAndMakeVisible(slider);
         if (centred) {
             slider.setLookAndFeel(&lookAndFeelCentred);

@@ -81,10 +81,8 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Proto_galoisAudioProcessor)
     double host_sample_rate;
 
-    float sample_reduction_register;
+    float* sample_reduction_register;
     int sample_reduction_counter;
-
-    char** blend_mode_names;
 
     // Cached parameter values
     float cached_bit_depth;
@@ -102,7 +100,7 @@ private:
 
     // Factory Presets
     juce::String* preset_names;
-    char** preset_filenames;
+    juce::String* preset_filenames;
     int current_programme;
     const int NUM_PROGRAMMES = 2;
 };

@@ -368,19 +368,6 @@ float remap_sample(
 	// Base waveform
 	float val = (*ptr[wf])(sample);
 
-	// Bit mask
-	int intval = floor(abs(val) * MAX_BIT_DEPTH);
-	if (mask > 0) {
-		intval ^= mask;
-		val = sgn(val) * (float)intval / MAX_BIT_DEPTH_F;
-	}
-	else if (mask < 0) {
-		mask = -1 * mask;
-		mask = MAX_BIT_DEPTH - 1 - mask;
-		intval &= mask;
-		val = sgn(val) * (float)intval / MAX_BIT_DEPTH_F;
-	}
-
 	// Power
 	if (power == 0) {
 		power = 1;
@@ -421,6 +408,19 @@ float remap_sample(
 		val = sgn(val) * float(floor(abs(val) * bd) / bd);
 	}
 
+	// Bit mask
+	int intval = floor(abs(val) * MAX_BIT_DEPTH);
+	if (mask > 0) {
+		intval ^= mask;
+		val = sgn(val) * (float)intval / MAX_BIT_DEPTH_F;
+	}
+	else if (mask < 0) {
+		mask = -1 * mask;
+		mask = MAX_BIT_DEPTH - 1 - mask;
+		intval &= mask;
+		val = sgn(val) * (float)intval / MAX_BIT_DEPTH_F;
+	}
+
 	// Fold
 	if (fold_amt > 0) {
 		fold_amt += 1;
@@ -431,9 +431,6 @@ float remap_sample(
 		fold_amt *= 3;
 		val = fold(sin(-val * fold_amt));
 	}
-
-	// Clamp to valid range
-	val = clamp(val, -1, 1);
 
 	return val;
 }

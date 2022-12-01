@@ -41,32 +41,10 @@ Proto_galoisAudioProcessor::Proto_galoisAudioProcessor()
     sample_reduction_register = 0;
     sample_reduction_counter = 0;
 
-    blend_mode_names = new char* [5];
-    blend_mode_names[0] = "Add";
-    blend_mode_names[1] = "Multiply";
-    blend_mode_names[2] = "AND";
-    blend_mode_names[3] = "OR";
-    blend_mode_names[4] = "XOR";
-
-    initialize_waveforms();
-    waveform_cache = new float[waveform_resolution];
-    cacheWaveforms();
-    tree.addParameterListener("bit_depth", this);
-    tree.addParameterListener("wf_base_wave", this);
-    tree.addParameterListener("wf_power", this);
-    tree.addParameterListener("wf_fold", this);
-    tree.addParameterListener("wf_harm_freq", this);
-    tree.addParameterListener("wf_harm_amp", this);
-    tree.addParameterListener("bit_mask", this);
-    tree.addParameterListener("sample_rate", this);
-    tree.addParameterListener("input_level", this);
-    tree.addParameterListener("output_level", this);
-    tree.addParameterListener("dry_blend", this);
-
     preset_names = new juce::String[NUM_PROGRAMMES];
     preset_names[0] = "Init";
     preset_names[1] = "TestPreset";
-    preset_filenames = new char*[NUM_PROGRAMMES];
+    preset_filenames = new juce::String[NUM_PROGRAMMES];
     preset_filenames[0] = "preset_Init_xml";
     preset_filenames[1] = "preset_TestPreset_xml";
     current_programme = 0;
@@ -75,6 +53,10 @@ Proto_galoisAudioProcessor::Proto_galoisAudioProcessor()
 
 Proto_galoisAudioProcessor::~Proto_galoisAudioProcessor()
 {
+    delete[] sample_reduction_register;
+    delete[] preset_filenames;
+    delete[] preset_names;
+    delete[] waveform_cache;
 }
 
 //==============================================================================
@@ -117,7 +99,7 @@ double Proto_galoisAudioProcessor::getTailLengthSeconds() const
 
 int Proto_galoisAudioProcessor::getNumPrograms()
 {
-    return NUM_PROGRAMMES;
+    return 1; // NUM_PROGRAMMES;
 }
 
 int Proto_galoisAudioProcessor::getCurrentProgram()
@@ -132,7 +114,7 @@ void Proto_galoisAudioProcessor::setCurrentProgram (int index)
     }
     current_programme = index;
     int dataSize = 0;
-    const char* xml = BinaryData::getNamedResource(preset_filenames[index], dataSize);
+    const char* xml = BinaryData::getNamedResource(preset_filenames[index].toRawUTF8(), dataSize);
     std::unique_ptr<juce::XmlElement> xmlState = juce::XmlDocument(xml).getDocumentElement();
 
     if (xmlState.get() != nullptr) {    // FAILING HERE
@@ -157,7 +139,24 @@ void Proto_galoisAudioProcessor::changeProgramName (int index, const juce::Strin
 //==============================================================================
 void Proto_galoisAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    initialize_waveforms();     // set up the array of waveform functions in Waveform.cpp
+    host_sample_rate = getSampleRate();
+    sample_reduction_register = new float[getNumInputChannels()];
+
+    initialize_waveforms();
+    waveform_cache = new float[waveform_resolution];
+    cacheWaveforms();
+
+    tree.addParameterListener("bit_depth", this);
+    tree.addParameterListener("wf_base_wave", this);
+    tree.addParameterListener("wf_power", this);
+    tree.addParameterListener("wf_fold", this);
+    tree.addParameterListener("wf_harm_freq", this);
+    tree.addParameterListener("wf_harm_amp", this);
+    tree.addParameterListener("bit_mask", this);
+    tree.addParameterListener("sample_rate", this);
+    tree.addParameterListener("input_level", this);
+    tree.addParameterListener("output_level", this);
+    tree.addParameterListener("dry_blend", this);
 }
 
 void Proto_galoisAudioProcessor::releaseResources()
@@ -225,7 +224,6 @@ void Proto_galoisAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     for (auto i = 0; i < buffer.getNumChannels(); ++i){
         float* channel = buffer.getWritePointer(i);
-        //float* wb_channel = working_buffer.getWritePointer(i);
         for (auto j = 0; j < buffer.getNumSamples(); ++j){
             float sample = channel[j];
 
@@ -233,10 +231,10 @@ void Proto_galoisAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             sample_reduction_counter++;
             if (sample_reduction_counter >= cached_sample_rate) {
                 sample_reduction_counter = 0;
-                sample_reduction_register = sample;
+                sample_reduction_register[i] = sample;
             }
             else {
-                sample = sample_reduction_register;
+                sample = sample_reduction_register[i];
             }
             
             // Input level
@@ -244,33 +242,17 @@ void Proto_galoisAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
             // Waveform remapping
             sample = getWaveformValue(sample);
+
             // Dry Blend
             sample = dbs * channel[j] * db + sample * (1 - db);
             sample /= 2;
-/*
-            else if (*tree.getRawParameterValue("dry_blend_mode") == 1) {
-                sample = dbs * channel[j] * db + (channel[j] * sample) * sgn(sample) * (1 - db);
-            }
-            else if (*tree.getRawParameterValue("dry_blend_mode") == 2) {
-                int a = floor(dbs * channel[j] * db * MAX_BIT_DEPTH);
-                int b = floor(sample * (1 - db) * MAX_BIT_DEPTH);
-                sample = float(a & b) / float(MAX_BIT_DEPTH);
-            }
-            else if (*tree.getRawParameterValue("dry_blend_mode") == 3) {
-                int a = floor(dbs * channel[j] * db * MAX_BIT_DEPTH);
-                int b = floor(sample * (1 - db) * MAX_BIT_DEPTH);
-                sample = float(a | b) / float(MAX_BIT_DEPTH);
-            }
-            else if (*tree.getRawParameterValue("dry_blend_mode") == 4) {
-                int a = floor(dbs * channel[j] * db * MAX_BIT_DEPTH);
-                int b = floor(sample * (1 - db) * MAX_BIT_DEPTH);
-                sample = float(a ^ b) / float(MAX_BIT_DEPTH);
-            }
-  */        
 
             // Output Level             
             sample *= cached_output_level;
-            sample *= 0.99;
+            sample *= 0.7;
+            // Clamp to valid range
+            sample = clamp(sample, -1, 1);
+
             channel[j] = sample;
      
         }
