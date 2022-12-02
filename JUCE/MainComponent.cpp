@@ -38,18 +38,17 @@ public:
         logoImage.setImage(img);
         addAndMakeVisible(logoImage);
 
-    //    mis = new juce::MemoryInputStream(BinaryData::background_png, BinaryData::background_pngSize, false);
-    //    img = format.decodeImage(*mis);
-    //    delete(mis);
-    //    backgroundImage.setImage(img);
-    //    addAndMakeVisible(backgroundImage);
+        mis = new juce::MemoryInputStream(BinaryData::background_png, BinaryData::background_pngSize, false);
+        img = format.decodeImage(*mis);
+        delete(mis);
+        backgroundImage.setImage(img);
+        addAndMakeVisible(backgroundImage);
         
 
         audioProcessor = ap;
         addAndMakeVisible(wf_component);
 
         makeSlider(waveSlider, waveSliderLabel, "wf_base_wave", waveSliderAttachment);
-        waveSliderLabel.setTooltip("WOOOOT");
         makeSlider(bitDepthSlider, bitDepthSliderLabel, "bit_depth", bitDepthSliderAttachment);
         makeSlider(powerSlider, powerSliderLabel, "wf_power", powerSliderAttachment, true);
         makeSlider(harmFreqSlider, harmFreqSliderLabel, "wf_harm_freq", harmFreqSliderAttachment);
@@ -95,7 +94,7 @@ public:
     }
 
     void paint(juce::Graphics& g) {
-        wf_component.updateWaveform();
+       g.fillAll(juce::Colours::slategrey);
        g.setColour(juce::Colours::black);
        g.setFillType(juce::FillType(juce::Colours::black));
        int line_spacer = knob_size + knob_spacer * 5;
@@ -111,8 +110,9 @@ public:
 
     void resized() override
     {
-//        backgroundImage.setSize(getWidth(), getHeight());
-//        backgroundImage.setTopLeftPosition(0, 0);
+        wf_component.updateWaveform();
+        backgroundImage.setSize(getWidth(), getHeight());
+        backgroundImage.setTopLeftPosition(0, 0);
 
         wf_component.setSize(getHeight() - 20, getHeight() - 20);
         wf_component.setTopLeftPosition(10, 10);
@@ -159,10 +159,15 @@ public:
     void placeSlider(juce::Slider& slider, juce::Label& label, int x, int y) {
         slider.setSize(knob_size, knob_size);
         slider.setTopLeftPosition(x, y);
+        slider.onValueChange = [this] { waveformChanged(); };
     }
 
     void presetButtonClicked() {
         audioProcessor->saveFactoryPreset(factoryPresetNameLabel.getText());
+    }
+
+    void waveformChanged() {
+        wf_component.updateWaveform();
     }
 
 private:
@@ -226,7 +231,7 @@ private:
     int knob_size = 110;
     int knob_spacer = 10;
 
-//    juce::ImageComponent backgroundImage;
+    juce::ImageComponent backgroundImage;
     juce::ImageComponent logoImage;
     juce::TextButton factoryPresetButton;
     juce::Label factoryPresetNameLabel;

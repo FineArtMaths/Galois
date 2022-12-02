@@ -18,7 +18,7 @@ Proto_galoisAudioProcessorEditor::~Proto_galoisAudioProcessorEditor()
 //==============================================================================
 void Proto_galoisAudioProcessorEditor::paint (juce::Graphics& g)
 {
-//    mainComponent.paint(g);
+   // mainComponent.paint(g);
 }
 
 void Proto_galoisAudioProcessorEditor::resized()
