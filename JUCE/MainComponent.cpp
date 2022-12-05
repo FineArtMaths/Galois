@@ -30,6 +30,20 @@ public:
 
 #endif // FACTORY_PRESET_BUTTON
 
+        filterPositionLabel.setButtonText(ap->getFilterPosition());
+        filterPositionLabel.onClick = [this] { filterPositionLabelClicked(); };
+        filterPositionLabel.setSize(50, 20);
+        filterPositionLabel.setColour(juce::Label::textColourId, juce::Colours::lightcoral);
+        filterPositionLabel.setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
+        addAndMakeVisible(filterPositionLabel);
+
+        filterTypeLabel.setButtonText(ap->getFilterType());
+        filterTypeLabel.onClick = [this] { filterTypeLabelClicked(); };
+        filterTypeLabel.setSize(50, 20);
+        filterTypeLabel.setColour(juce::Label::textColourId, juce::Colours::lightcoral);
+        filterTypeLabel.setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
+        addAndMakeVisible(filterTypeLabel);
+
         // Load images
         juce::PNGImageFormat format;
         juce::MemoryInputStream* mis = new juce::MemoryInputStream(BinaryData::logo_png, BinaryData::logo_pngSize, false);
@@ -48,7 +62,7 @@ public:
         audioProcessor = ap;
         addAndMakeVisible(wf_component);
 
-        makeSlider(waveSlider, waveSliderLabel, "wf_base_wave", waveSliderAttachment);
+        makeSlider(waveSlider, waveSliderLabel, "wf_base_wave", waveSliderAttachment, false, false, false);
         makeSlider(bitDepthSlider, bitDepthSliderLabel, "bit_depth", bitDepthSliderAttachment);
         makeSlider(powerSlider, powerSliderLabel, "wf_power", powerSliderAttachment, true);
         makeSlider(harmFreqSlider, harmFreqSliderLabel, "wf_harm_freq", harmFreqSliderAttachment);
@@ -59,9 +73,19 @@ public:
         makeSlider(outputSlider, outputSliderLabel, "output_level", outputSliderAttachment);
         makeSlider(dryBlendSlider, dryBlendSliderLabel, "dry_blend", dryBlendSliderAttachment, true);
         makeSlider(bitMaskSlider, bitMaskSliderLabel, "bit_mask", bitMaskSliderAttachment, true);
+
+        makeSlider(filterBlendSlider, filterBlendSliderLabel, "filter_blend", filterBlendSliderAttachment, false, false);
+        makeSlider(filterCutoffSlider, filterCutoffSliderLabel, "biquad_cutoff", filterCutoffSliderAttachment, false, false);
+        makeSlider(filterQSlider, filterQSliderLabel, "biquad_q", filterQSliderAttachment, false, false);
     }
 
-    void makeSlider(juce::Slider& slider, juce::Label& label, const char* param, std::unique_ptr<SliderAttachment>& sa, bool centred=false) {
+    void makeSlider(
+        juce::Slider& slider, 
+        juce::Label& label, 
+        const char* param, 
+        std::unique_ptr<SliderAttachment>& sa, 
+        bool centred=false, bool text_box=true, bool show_label=true
+    ) {
         addAndMakeVisible(slider);
         if (centred) {
             slider.setLookAndFeel(&lookAndFeelCentred);
@@ -70,22 +94,29 @@ public:
             slider.setLookAndFeel(&lookAndFeel);
         }
         slider.setSliderStyle(juce::Slider::SliderStyle::RotaryVerticalDrag);
-        slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, slider.getTextBoxHeight());
+        if (text_box) {
+            slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, slider.getTextBoxHeight());
+        }
+        else {
+            slider.setTextBoxStyle(juce::Slider::NoTextBox, true, 0, 0);
+        }
+        slider.setWantsKeyboardFocus(true);
 
         SliderAttachment* saptr = new SliderAttachment(valueTreeState, param, slider);
         sa.reset(saptr);
+        if (show_label) {
+            addAndMakeVisible(label);
 
-        addAndMakeVisible(label);
-
-        juce::String text = valueTreeState.getParameter(param)->name;
-        label.setText(text, juce::NotificationType::dontSendNotification);
-        label.setFont(juce::Font(14.0f, juce::Font::plain));
-        label.setColour(juce::Label::textColourId, juce::Colours::lightgreen);
-        label.setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
-        label.setColour(juce::Label::outlineColourId, juce::Colours::transparentBlack);
-        label.setColour(juce::Label::outlineWhenEditingColourId, juce::Colours::transparentBlack);
-        label.setJustificationType(juce::Justification::centred);
-        label.attachToComponent(&slider, false);
+            juce::String text = valueTreeState.getParameter(param)->name;
+            label.setText(text, juce::NotificationType::dontSendNotification);
+            label.setFont(juce::Font(18.0f, juce::Font::plain));
+            label.setColour(juce::Label::textColourId, juce::Colours::lightgreen);
+            label.setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
+            label.setColour(juce::Label::outlineColourId, juce::Colours::transparentBlack);
+            label.setColour(juce::Label::outlineWhenEditingColourId, juce::Colours::transparentBlack);
+            label.setJustificationType(juce::Justification::centred);
+            label.attachToComponent(&slider, false);
+        }
     }
 
     ~MainComponent()
@@ -98,14 +129,6 @@ public:
        g.setColour(juce::Colours::black);
        g.setFillType(juce::FillType(juce::Colours::black));
        int line_spacer = knob_size + knob_spacer * 5;
-       g.drawRect(
-           wf_component.getWidth() + 20,
-           2*line_spacer,
-           getWidth() - wf_component.getWidth() - 30,
-           2
-       );
-       //char s[10];
-       //itoa(audioProcessor->getCurrentProgram(), s, 10);
     }
 
     void resized() override
@@ -117,13 +140,15 @@ public:
         wf_component.setSize(getHeight() - 20, getHeight() - 20);
         wf_component.setTopLeftPosition(10, 10);
 
-        int line_spacer = knob_size + knob_spacer * 5;
-        int xpos = wf_component.getWidth() + knob_spacer;
-        placeSlider(waveSlider, waveSliderLabel, xpos, 30);
+        placeSlider(waveSlider, waveSliderLabel, 480 - knob_size, 480 - knob_size, 0.7);
+
+        int line_spacer = knob_size + knob_spacer * 7;
+        int xpos = wf_component.getWidth() + 50 + knob_spacer;
+        placeSlider(inputSlider, inputSliderLabel, xpos, 30);
         xpos += knob_size + knob_spacer;
-        placeSlider(foldSlider, foldSliderLabel, xpos, 30);
+        placeSlider(dryBlendSlider, dryBlendSliderLabel, xpos, 30);
         xpos += knob_size + knob_spacer;
-        placeSlider(powerSlider, powerSliderLabel, xpos, 30);
+        placeSlider(outputSlider, outputSliderLabel, xpos, 30);
         xpos += knob_size + knob_spacer;
         logoImage.setSize(knob_size*0.9, knob_size * 0.9);
         logoImage.setTopLeftPosition(xpos, 20);
@@ -137,33 +162,52 @@ public:
         factoryPresetNameLabel.toFront(false);
 #endif
 
-        xpos = wf_component.getWidth() + knob_spacer;
+        xpos = wf_component.getWidth() + 50 + knob_spacer;
+        placeSlider(foldSlider, foldSliderLabel, xpos, 30 + line_spacer);
+        xpos += knob_size + knob_spacer;
+        placeSlider(powerSlider, powerSliderLabel, xpos, 30 + line_spacer);
+        xpos += knob_size + knob_spacer;
         placeSlider(harmFreqSlider, harmFreqSliderLabel, xpos, 30 + line_spacer);
         xpos += knob_size + knob_spacer;
         placeSlider(harmAmtSlider, harmAmtSliderLabel, xpos, 30 + line_spacer);
-        xpos += knob_size + knob_spacer;
-        placeSlider(bitDepthSlider, bitDepthSliderLabel, xpos, 30 + line_spacer);
-        xpos += knob_size + knob_spacer;
-        placeSlider(bitMaskSlider, bitMaskSliderLabel, xpos, 30 + line_spacer);
 
-        xpos = wf_component.getWidth() + knob_spacer;
-        placeSlider(inputSlider, inputSliderLabel, xpos, 30 + 2 * line_spacer + 20);
+        xpos = wf_component.getWidth() + 50 + knob_spacer;
+        placeSlider(bitDepthSlider, bitDepthSliderLabel, xpos, 30 + 2 * line_spacer);
         xpos += knob_size + knob_spacer;
-        placeSlider(sampleRateSlider, sampleRateSliderLabel, xpos, 30 + 2 * line_spacer + 20);
+        placeSlider(bitMaskSlider, bitMaskSliderLabel, xpos, 30 + 2 * line_spacer);
         xpos += knob_size + knob_spacer;
-        placeSlider(dryBlendSlider, dryBlendSliderLabel, xpos, 30 + 2 * line_spacer + 20);
+        placeSlider(sampleRateSlider, sampleRateSliderLabel, xpos, 30 + 2 * line_spacer);
         xpos += knob_size + knob_spacer;
-        placeSlider(outputSlider, outputSliderLabel, xpos, 30 + 2 * line_spacer + 20);
+        placeSlider(filterCutoffSlider, filterCutoffSliderLabel, xpos, 30 + 2 * line_spacer + 10, 0.4f);
+        placeSlider(filterQSlider, filterQSliderLabel, xpos + (knob_size + knob_spacer) * 0.4f, 30 + 2 * line_spacer + 10, 0.4f);
+        placeSlider(filterBlendSlider, filterBlendSliderLabel, xpos, 30 + 2 * line_spacer + knob_size * 0.6f + 10, 0.4f);
+
+        int x = xpos + (knob_size + knob_spacer) * 0.4f;
+        int y = 30 + 2 * line_spacer + knob_size * 0.6f + 10;
+        filterPositionLabel.setTopLeftPosition(x, y);
+        filterPositionLabel.toFront(false);
+        filterTypeLabel.setTopLeftPosition(x, y + 20);
+        filterTypeLabel.toFront(false);
     }
 
-    void placeSlider(juce::Slider& slider, juce::Label& label, int x, int y) {
-        slider.setSize(knob_size, knob_size);
+    void placeSlider(juce::Slider& slider, juce::Label& label, int x, int y, float scale=1.0f) {
+        slider.setSize(knob_size * scale, knob_size * scale);
         slider.setTopLeftPosition(x, y);
         slider.onValueChange = [this] { waveformChanged(); };
     }
 
     void presetButtonClicked() {
         audioProcessor->saveFactoryPreset(factoryPresetNameLabel.getText());
+    }
+
+    void filterPositionLabelClicked() {
+        audioProcessor->cycleParamValue("filter_pre");
+        filterPositionLabel.setButtonText(audioProcessor->getFilterPosition());
+    }
+
+    void filterTypeLabelClicked() {
+        audioProcessor->cycleParamValue("biquad_type");
+        filterTypeLabel.setButtonText(audioProcessor->getFilterType());
     }
 
     void waveformChanged() {
@@ -228,11 +272,26 @@ private:
     juce::Label bitMaskSliderLabel;
     std::unique_ptr<SliderAttachment> bitMaskSliderAttachment;
 
+    juce::Slider filterBlendSlider;
+    juce::Label filterBlendSliderLabel;
+    std::unique_ptr<SliderAttachment> filterBlendSliderAttachment;
+
+    juce::Slider filterCutoffSlider;
+    juce::Label filterCutoffSliderLabel;
+    std::unique_ptr<SliderAttachment> filterCutoffSliderAttachment;
+
+    juce::Slider filterQSlider;
+    juce::Label filterQSliderLabel;
+    std::unique_ptr<SliderAttachment> filterQSliderAttachment;
+
     int knob_size = 110;
-    int knob_spacer = 10;
+    int knob_spacer = 7;
 
     juce::ImageComponent backgroundImage;
     juce::ImageComponent logoImage;
     juce::TextButton factoryPresetButton;
     juce::Label factoryPresetNameLabel;
+
+    juce::TextButton filterPositionLabel;
+    juce::TextButton filterTypeLabel;
 };

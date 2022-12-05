@@ -7,7 +7,7 @@
 Proto_galoisAudioProcessorEditor::Proto_galoisAudioProcessorEditor (Proto_galoisAudioProcessor& p, juce::AudioProcessorValueTreeState& vts)
     : AudioProcessorEditor (&p), audioProcessor (p), mainComponent(&p, vts), valueTreeState(vts)
 {
-    setSize (980, 500);
+    setSize (980, 480);
     addAndMakeVisible(mainComponent);
 }
 

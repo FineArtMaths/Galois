@@ -33,7 +33,12 @@ Proto_galoisAudioProcessor::Proto_galoisAudioProcessor()
             std::make_unique<juce::AudioParameterFloat>("wf_harm_amp", "Harm Amount", juce::NormalisableRange<float>(-10, 10), 0),
             std::make_unique<juce::AudioParameterFloat>("dry_blend", "Dry Blend", juce::NormalisableRange<float>(-1, 1), 0),
             std::make_unique<juce::AudioParameterInt>("dry_blend_mode", "Blend Mode", 0, 4, 0),
-            std::make_unique<juce::AudioParameterInt>("bit_mask", "Bit Mask", -1023, 1023, 0)
+            std::make_unique<juce::AudioParameterInt>("bit_mask", "Bit Mask", -1023, 1023, 0),
+            std::make_unique<juce::AudioParameterFloat>("filter_blend", "Blend", 0.0f, 1.0f, 0.0f),
+            std::make_unique<juce::AudioParameterInt>("filter_pre", "Filter Before Remapping", 0, 1, 1),
+            std::make_unique<juce::AudioParameterFloat>("biquad_cutoff", "Cutoff", 0.0f, 9.0f, 9.0f),
+            std::make_unique<juce::AudioParameterFloat>("biquad_q", "Q", 0.0f, 1.0f, 0.5f),
+            std::make_unique<juce::AudioParameterFloat>("biquad_gain", "Filter Gain", 0.0f, 20.0f, 1.0f)
         }
     )
 {
@@ -41,6 +46,17 @@ Proto_galoisAudioProcessor::Proto_galoisAudioProcessor()
     sample_reduction_register = 0;
     sample_reduction_counter = 0;
 
+    biquad_filter = 0;
+    biquad_position_names = new juce::String[2];
+    biquad_position_names[0] = "PRE";
+    biquad_position_names[1] = "POST";
+    biquad_type_names = new juce::String[3];
+    biquad_type_names[0] = "LP";
+    biquad_type_names[1] = "HP";
+    biquad_type_names[2] = "BP";
+    cached_biquad_type = 0;
+
+    
     preset_names = new juce::String[NUM_PROGRAMMES];
     preset_names[0] = "Init";
     preset_names[1] = "TestPreset";
@@ -52,6 +68,7 @@ Proto_galoisAudioProcessor::Proto_galoisAudioProcessor()
     initialize_waveforms();
     waveform_cache = new float[waveform_resolution];
     cacheWaveforms();
+
     tree.addParameterListener("bit_depth", this);
     tree.addParameterListener("wf_base_wave", this);
     tree.addParameterListener("wf_power", this);
@@ -63,6 +80,10 @@ Proto_galoisAudioProcessor::Proto_galoisAudioProcessor()
     tree.addParameterListener("input_level", this);
     tree.addParameterListener("output_level", this);
     tree.addParameterListener("dry_blend", this);
+    tree.addParameterListener("filter_blend", this);
+    tree.addParameterListener("biquad_cutoff", this);
+    tree.addParameterListener("biquad_q", this);
+    tree.addParameterListener("biquad_gain", this);
 }
 
 
@@ -155,8 +176,12 @@ void Proto_galoisAudioProcessor::changeProgramName (int index, const juce::Strin
 //==============================================================================
 void Proto_galoisAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    host_sample_rate = getSampleRate();
-    sample_reduction_register = new float[getNumInputChannels()];
+    host_sample_rate = sampleRate;
+    num_channels = getNumInputChannels();
+    sample_reduction_register = new float[num_channels];
+    biquad_filter = new Biquad[num_channels];
+    parameterChanged("", 0);
+    updateFilter();
 }
 
 void Proto_galoisAudioProcessor::releaseResources()
@@ -215,14 +240,8 @@ float Proto_galoisAudioProcessor::getWaveformValue(
 void Proto_galoisAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
-    auto totalNumInputChannels  = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
-    int nc = buffer.getNumChannels();
 
-    float db = abs(*tree.getRawParameterValue("dry_blend"));
-    int dbs = sgn(*tree.getRawParameterValue("dry_blend"));
-
-    for (auto i = 0; i < buffer.getNumChannels(); ++i){
+    for (auto i = 0; i < num_channels; ++i){
         float* channel = buffer.getWritePointer(i);
         for (auto j = 0; j < buffer.getNumSamples(); ++j){
             float sample = channel[j];
@@ -240,11 +259,20 @@ void Proto_galoisAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             // Input level
             sample *= sqrt(cached_input_level);
 
+            // Filter
+            if (cached_filter_pre == 0) {
+                sample = apply_filter(sample, i);
+            }
             // Waveform remapping
             sample = getWaveformValue(sample);
 
+            // Filter
+            if (cached_filter_pre == 1) {
+                sample = apply_filter(sample, i);
+            }
+
             // Dry Blend
-            sample = dbs * channel[j] * db + sample * (1 - db);
+            sample = cached_dry_blend_sign * channel[j] * cached_dry_blend_abs + sample * (1 - cached_dry_blend_abs);
             sample /= 2;
 
             // Output Level             
@@ -252,11 +280,18 @@ void Proto_galoisAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             sample *= 0.7;
             // Clamp to valid range
             sample = clamp(sample, -1, 1);
-
+            
             channel[j] = sample;
      
         }
     }
+}
+
+float Proto_galoisAudioProcessor::apply_filter(float sample, int channel) {
+    float filtered_sample = biquad_filter[channel].apply(sample);
+    sample = filtered_sample * (cached_filter_blend) + sample * (1 - cached_filter_blend);
+    sample /= 2;
+    return sample;
 }
 
 const char* Proto_galoisAudioProcessor::getWaveformName() {
@@ -319,6 +354,33 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 // Cache the waveform here
 void Proto_galoisAudioProcessor::parameterChanged(const juce::String& parameterID, float newValue) {
     cacheWaveforms();
+    
+//    if (parameterID == "biquad_cutoff") {
+        cached_biquad_cutoff = 16 * pow(2, *tree.getRawParameterValue("biquad_cutoff"));
+        if (cached_biquad_cutoff >= host_sample_rate / 2) {
+            cached_biquad_cutoff = host_sample_rate / 2 - 1;
+        }
+//    } else if (parameterID == "biquad_q") {
+        cached_biquad_q = 1.01 - *tree.getRawParameterValue("biquad_q");
+//    } else if (parameterID == "biquad_gain") {
+        cached_biquad_gain = *tree.getRawParameterValue("biquad_gain");
+//    }
+
+//    if (parameterID.contains("biquad")) {
+        updateFilter();
+//    }
+}
+
+void Proto_galoisAudioProcessor::updateFilter() {
+    for (int i = 0; i < num_channels; ++i) {
+        biquad_filter[i].recalculate(
+            host_sample_rate,
+            cached_biquad_cutoff,
+            cached_biquad_q,
+            cached_biquad_gain,
+            cached_biquad_type
+            );
+    }
 }
 
 void Proto_galoisAudioProcessor::cacheWaveforms() {
@@ -335,7 +397,11 @@ void Proto_galoisAudioProcessor::cacheWaveforms() {
     cached_wf_harm_amp = *tree.getRawParameterValue("wf_harm_amp");
     cached_dry_blend = *tree.getRawParameterValue("dry_blend");
     cached_dry_blend_mode = *tree.getRawParameterValue("dry_blend_mode");
+    cached_dry_blend_abs = abs(*tree.getRawParameterValue("dry_blend"));
+    cached_dry_blend_sign = sgn(*tree.getRawParameterValue("dry_blend"));
     cached_bit_mask = *tree.getRawParameterValue("bit_mask");
+    cached_filter_pre = *tree.getRawParameterValue("filter_pre");
+    cached_filter_blend= *tree.getRawParameterValue("filter_blend");
 
     float waveform_resolution_half = (float)waveform_resolution / 2;
     for (int i = 0; i < waveform_resolution; i++) {
@@ -343,3 +409,37 @@ void Proto_galoisAudioProcessor::cacheWaveforms() {
         waveform_cache[i] = getWaveformValue(amp);
     }
 }
+
+juce::String Proto_galoisAudioProcessor::getFilterPosition() {
+    int i = *tree.getRawParameterValue("filter_pre");
+    return biquad_position_names[i];
+}
+
+juce::String Proto_galoisAudioProcessor::getFilterType() {
+    return biquad_type_names[cached_biquad_type];
+}
+
+void Proto_galoisAudioProcessor::cycleParamValue(juce::String parameterID) {
+    if (parameterID == "biquad_type") {
+        int current = cached_biquad_type;
+        ++current;
+        if (current > 2) {
+            current = 0;
+        }
+        cached_biquad_type = current;
+        updateFilter();
+    }
+    else {
+        int current = *tree.getRawParameterValue(parameterID);
+        ++current;
+        if (current > (tree.getParameter(parameterID)->getNormalisableRange().end)) {
+            current = 0;
+        }
+        tree.getParameter(parameterID)->beginChangeGesture();
+        tree.getParameter(parameterID)->setValueNotifyingHost(current);
+        tree.getParameter(parameterID)->endChangeGesture();
+        parameterChanged(parameterID, current);
+    }
+}
+
+

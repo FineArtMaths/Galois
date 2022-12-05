@@ -53,17 +53,20 @@ public:
         g.setFillType(juce::FillType(juce::Colours::darkgreen));
         g.drawRect(0, (int)yscale, getWidth(), (int)xscale, (int)xscale);
         g.drawRect((int)getWidth() / 2, 0, (int)xscale, getHeight(), (int)xscale);
+
         // Ticks
-        for (int i = 0; i < getHeight(); i += 10) {
-            int wid = i % 50 == 0 ? 20 : 10;
-            g.drawRect((getWidth() / 2) - wid/2, i, wid, (int)xscale, (int)xscale);
+        int step = 10; // floor(10 * *(proc->tree.getRawParameterValue("input_level")));
+        for (int i = 0; i < getHeight(); i ++) {
+            int wid = i % 5 == 0 ? 20 : 10;
+            g.drawRect((getWidth() / 2) - wid/2, step/2 + i*step, wid, (int)xscale, (int)xscale);
         }
-        for (int i = 0; i < getWidth(); i += 10) {
-            int wid = i % 50 == 0 ? 20 : 10;
-            g.drawRect(i, (getHeight() / 2) - wid / 2, (int)xscale, wid, (int)xscale);
+        // step =  floor(10 * *(proc->tree.getRawParameterValue("output_level")));
+        for (int i = 0; i < getWidth(); i ++) {
+            int wid = i % 5 == 0 ? 20 : 10;
+            g.drawRect(step / 2 + i * step, (getHeight() / 2) - wid / 2, (int)xscale, wid, (int)xscale);
         }
         // Curve
-        g.setColour(juce::Colours::lightgreen);
+        g.setColour(juce::Colours::yellowgreen);
         g.setOpacity(1.0f);
         for (int x = 1; x < proc->waveform_resolution; x++) {
             g.drawLine(
@@ -92,9 +95,6 @@ public:
     }
 
 private:
-    //int resolution;
-    //float half_resolution;
-    //float* waveform;
     juce::Colour vDarkGreen;
     const char* wf_name;
 

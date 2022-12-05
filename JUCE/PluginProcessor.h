@@ -9,6 +9,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "Biquad.cpp"
 
 //==============================================================================
 /**
@@ -70,19 +71,33 @@ public:
     const int waveform_resolution = 200;
 
     void saveFactoryPreset(juce::String name);
+    juce::String getFilterPosition();
+    juce::String getFilterType();
+    void cycleParamValue(juce::String parameterID);
 
 private:
-    //==============================================================================
-    float filter(const float input, float* wb_channel, int wb_channel_number, float filter_window);
-    float apply_filter(float sample, float* wb_channel, int wbi);
-
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Proto_galoisAudioProcessor)
     double host_sample_rate;
+    int num_channels;
 
     float* sample_reduction_register;
     int sample_reduction_counter;
+
+    // Filter 
+    Biquad* biquad_filter;
+    float cached_biquad_cutoff;
+    float cached_biquad_q;
+    float cached_biquad_gain;
+    int cached_biquad_type;
+    int cached_filter_pre;
+    float cached_filter_blend;
+    void updateFilter();
+    float apply_filter(float sample, int channel);
+
+    juce::String* biquad_position_names;
+    juce::String* biquad_type_names;
 
     // Cached parameter values
     float cached_bit_depth;
@@ -95,8 +110,11 @@ private:
     float cached_wf_harm_freq;
     float cached_wf_harm_amp;
     float cached_dry_blend;
+    float cached_dry_blend_abs;
+    float cached_dry_blend_sign;
     int cached_dry_blend_mode;
     int cached_bit_mask;
+    float cached_low_cutoff;
 
     // Factory Presets
     juce::String* preset_names;
