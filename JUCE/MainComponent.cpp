@@ -63,6 +63,7 @@ public:
         addAndMakeVisible(wf_component);
 
         makeSlider(waveSlider, waveSliderLabel, "wf_base_wave", waveSliderAttachment, false, false, false);
+        makeSlider(algoSlider, algoSliderLabel, "algorithm", algoSliderAttachment, false, false, false);
         makeSlider(bitDepthSlider, bitDepthSliderLabel, "bit_depth", bitDepthSliderAttachment);
         makeSlider(powerSlider, powerSliderLabel, "wf_power", powerSliderAttachment, true);
         makeSlider(harmFreqSlider, harmFreqSliderLabel, "wf_harm_freq", harmFreqSliderAttachment);
@@ -140,7 +141,8 @@ public:
         wf_component.setSize(getHeight() - 20, getHeight() - 20);
         wf_component.setTopLeftPosition(10, 10);
 
-        placeSlider(waveSlider, waveSliderLabel, 480 - knob_size, 480 - knob_size, 0.7);
+        placeSlider(waveSlider, waveSliderLabel, 500 - knob_size, 460 - knob_size, 0.7);
+        placeSlider(algoSlider, algoSliderLabel, 530 - knob_size, 420 - knob_size, 0.4);
 
         int line_spacer = knob_size + knob_spacer * 7;
         int xpos = wf_component.getWidth() + 50 + knob_spacer;
@@ -227,6 +229,10 @@ private:
     juce::Slider waveSlider;
     juce::Label waveSliderLabel;
     std::unique_ptr<SliderAttachment> waveSliderAttachment;
+
+    juce::Slider algoSlider;
+    juce::Label algoSliderLabel;
+    std::unique_ptr<SliderAttachment> algoSliderAttachment;
 
     juce::Slider bitDepthSlider;
     juce::Label bitDepthSliderLabel;

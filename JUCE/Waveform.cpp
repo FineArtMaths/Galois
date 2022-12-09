@@ -353,25 +353,11 @@ const char* wf_names[NUM_WFs] = {
 // Waveform Calculation
 //=======================================
 
-float remap_sample(
-	float sample, 
-	int wf, 
-	float power,
-	float harm_freq, float harm_amp, float bit_depth,
-	float fold_amt,
-	int mask
-) {	
-
-	if (sample == 0) {
-		return 0;	// All waveforms should do this, but some glitch out at 0 with extreme values.
-	}
-	// Base waveform
-	float val = (*ptr[wf])(sample);
-
-	// Power
+float apply_power(float val, float power) {
 	if (power == 0) {
 		power = 1;
-	} else {
+	}
+	else {
 		power *= -1;
 		if (power < 0) {
 			power = 1 + power;
@@ -388,17 +374,23 @@ float remap_sample(
 			val = pval;
 		}
 	}
+	return val;
+}
 
-	// Harmonics
+float apply_harmonics(float sample, float val, float harm_freq, float harm_amp) {
 	if (harm_amp > 0) {
 		float amp = (1 - pow(abs(val), 2)) * harm_amp;
 		val += sin(sample * PI * harm_freq) * 0.2 * amp;
-	} else if (harm_amp < 0) {
+	}
+	else if (harm_amp < 0) {
 		harm_amp *= -1;
 		float amp = (1 - pow(1 - abs(val), 2)) * harm_amp;
 		val += sin(sample * PI * harm_freq) * 0.2 * amp;
 	}
+	return val;
+}
 
+float apply_bit_reduction(float val, float bit_depth, int mask) {
 	// Bit reduction
 	if (bit_depth > 2) {
 		float bd = MAX_BIT_DEPTH_F - abs(bit_depth) + 2;
@@ -420,8 +412,10 @@ float remap_sample(
 		intval &= mask;
 		val = sgn(val) * (float)intval / MAX_BIT_DEPTH_F;
 	}
+	return val;
+}
 
-	// Fold
+float apply_fold(float val, float fold_amt) {
 	if (fold_amt > 0) {
 		fold_amt += 1;
 		val = fold(val * fold_amt);
@@ -430,6 +424,59 @@ float remap_sample(
 		fold_amt -= 0.5;
 		fold_amt *= 3;
 		val = fold(sin(-val * fold_amt));
+	}
+	return val;
+}
+
+enum {
+	ALGO_WF,
+	ALGO_POWER,
+	ALGO_HARMONICS,
+	ALGO_BIT,
+	ALGO_FOLD
+};
+
+float remap_sample(
+	float sample, 
+	int wf, 
+	float power,
+	float harm_freq, float harm_amp, float bit_depth,
+	float fold_amt,
+	int mask,
+	int* algorithm
+) {	
+
+	if (sample == 0) {
+		return 0;	// All waveforms should do this, but some glitch out at 0 with extreme values.
+	}
+
+	// Base waveform
+//	float val = (*ptr[wf])(sample);
+
+//	val = apply_power(val, power);
+//	val = apply_harmonics(sample, val, harm_freq, harm_amp);
+//	val = apply_bit_reduction(val, bit_depth);
+//	val = apply_fold(val, fold_amt);
+
+	float val = sample;
+	for (int i = 0; i < 5; ++i) {
+		switch (algorithm[i]) {
+		case ALGO_WF:
+			val = (*ptr[wf])(val);
+			break;
+		case ALGO_POWER:
+			val = apply_power(val, power);
+			break;
+		case ALGO_HARMONICS:
+			val = apply_harmonics(sample, val, harm_freq, harm_amp);
+			break;
+		case ALGO_BIT:
+			val = apply_bit_reduction(val, bit_depth, mask);
+			break;
+		case ALGO_FOLD:
+			val = apply_fold(val, fold_amt);
+			break;
+		}
 	}
 
 	return val;

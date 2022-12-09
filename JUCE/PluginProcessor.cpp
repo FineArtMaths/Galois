@@ -38,7 +38,8 @@ Proto_galoisAudioProcessor::Proto_galoisAudioProcessor()
             std::make_unique<juce::AudioParameterInt>("filter_pre", "Filter Before Remapping", 0, 1, 1),
             std::make_unique<juce::AudioParameterFloat>("biquad_cutoff", "Cutoff", 0.0f, 9.0f, 9.0f),
             std::make_unique<juce::AudioParameterFloat>("biquad_q", "Q", 0.0f, 1.0f, 0.5f),
-            std::make_unique<juce::AudioParameterFloat>("biquad_gain", "Filter Gain", 0.0f, 20.0f, 1.0f)
+            std::make_unique<juce::AudioParameterFloat>("biquad_gain", "Filter Gain", 0.0f, 20.0f, 1.0f),
+            std::make_unique<juce::AudioParameterInt>("algorithm", "Algorithm", 0, 119, 0),
         }
     )
 {
@@ -65,6 +66,8 @@ Proto_galoisAudioProcessor::Proto_galoisAudioProcessor()
     preset_filenames[1] = "preset_TestPreset_xml";
     current_programme = 0;
 
+    generate_algorithms();
+
     initialize_waveforms();
     waveform_cache = new float[waveform_resolution];
     cacheWaveforms();
@@ -84,6 +87,8 @@ Proto_galoisAudioProcessor::Proto_galoisAudioProcessor()
     tree.addParameterListener("biquad_cutoff", this);
     tree.addParameterListener("biquad_q", this);
     tree.addParameterListener("biquad_gain", this);
+    tree.addParameterListener("algorithm", this);
+
 }
 
 
@@ -233,7 +238,8 @@ float Proto_galoisAudioProcessor::getWaveformValue(
         cached_wf_harm_amp,
         cached_bit_depth,
         cached_wf_fold,
-        cached_bit_mask
+        cached_bit_mask,
+        cached_algorithm
     );
 }
 
@@ -402,11 +408,25 @@ void Proto_galoisAudioProcessor::cacheWaveforms() {
     cached_bit_mask = *tree.getRawParameterValue("bit_mask");
     cached_filter_pre = *tree.getRawParameterValue("filter_pre");
     cached_filter_blend= *tree.getRawParameterValue("filter_blend");
+    int algo = int(*tree.getRawParameterValue("algorithm"));
+    cached_algorithm = algorithms[algo];
 
     float waveform_resolution_half = (float)waveform_resolution / 2;
     for (int i = 0; i < waveform_resolution; i++) {
         float amp = (float)(i - waveform_resolution_half) / waveform_resolution_half;
         waveform_cache[i] = getWaveformValue(amp);
+    }
+}
+
+void Proto_galoisAudioProcessor::generate_algorithms() {
+    algorithms = new int* [120];
+    algorithms[0] = new int[5]{ 0, 1, 2, 3, 4 };
+    for (int i = 1; i < 120; ++i) {
+        algorithms[i] = new int[5];
+        for (int j = 0; j < 5; ++j) {
+            algorithms[i][j] = algorithms[i - 1][j];
+        }
+        std::next_permutation(algorithms[i], algorithms[i] + 5);
     }
 }
 

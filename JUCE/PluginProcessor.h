@@ -115,6 +115,11 @@ private:
     int cached_dry_blend_mode;
     int cached_bit_mask;
     float cached_low_cutoff;
+    int* cached_algorithm;
+
+    // Algorithms
+    void generate_algorithms();
+    int** algorithms;
 
     // Factory Presets
     juce::String* preset_names;
