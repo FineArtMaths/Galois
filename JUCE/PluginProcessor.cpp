@@ -60,10 +60,48 @@ Proto_galoisAudioProcessor::Proto_galoisAudioProcessor()
     
     preset_names = new juce::String[NUM_PROGRAMMES];
     preset_names[0] = "Init";
-    preset_names[1] = "TestPreset";
+    preset_names[1] = "Bad Radio";
+    preset_names[2] = "Cavernous Ringing";
+    preset_names[3] = "Clean Octave Up";
+    preset_names[4] = "Clean Transformer Splatter";
+    preset_names[5] = "Dirty Wavefolder";
+    preset_names[6] = "Dynamic Fuzz";
+    preset_names[7] = "Eight Bit Chomp";
+    preset_names[8] = "Fizzy Crunch";
+    preset_names[9] = "Gated Square";
+    preset_names[10] = "Green Ringer";
+    preset_names[11] = "Harmonic Croaker";
+    preset_names[12] = "Lazer Octave";
+    preset_names[13] = "Light Splatter";
+    preset_names[14] = "Medium Overdrive";
+    preset_names[15] = "Midrange Honk";
+    preset_names[16] = "Modem";
+    preset_names[17] = "Octave Fuzz";
+    preset_names[18] = "Passive Transformer";
+    preset_names[19] = "Purring Logic Gates";
+    preset_names[20] = "Throaty Crunch";
     preset_filenames = new juce::String[NUM_PROGRAMMES];
     preset_filenames[0] = "preset_Init_xml";
-    preset_filenames[1] = "preset_TestPreset_xml";
+    preset_filenames[1] = "preset_BadRadio_xml";
+    preset_filenames[2] = "preset_CarvernousRinging_xml";
+    preset_filenames[3] = "preset_CleanOctaveUp_xml";
+    preset_filenames[4] = "preset_CleanTransformerSplatter_xml";
+    preset_filenames[5] = "preset_DirtyFolder_xml";
+    preset_filenames[6] = "preset_DynamicFuzz_xml";
+    preset_filenames[7] = "preset_EightBitChomp_xml";
+    preset_filenames[8] = "preset_FizzyCrunch_xml";
+    preset_filenames[9] = "preset_GatedSquare_xml";
+    preset_filenames[10] = "preset_GreenRinger_xml";
+    preset_filenames[11] = "preset_HarmonicCroaker_xml";
+    preset_filenames[12] = "preset_LazerOctave_xml";
+    preset_filenames[13] = "preset_LightSplatter_xml";
+    preset_filenames[14] = "preset_MediumOverdrive_xml";
+    preset_filenames[15] = "preset_MidrangeHonk_xml";
+    preset_filenames[16] = "preset_Modem_xml";
+    preset_filenames[17] = "preset_OctaveFuzz_xml";
+    preset_filenames[18] = "preset_PassiveTransformer_xml";
+    preset_filenames[19] = "preset_PurringLogicGates_xml";
+    preset_filenames[20] = "preset_ThroatyCrunch_xml";
     current_programme = 0;
 
     generate_algorithms();
@@ -158,7 +196,7 @@ void Proto_galoisAudioProcessor::setCurrentProgram (int index)
     const char* xml = BinaryData::getNamedResource(preset_filenames[index].toRawUTF8(), dataSize);
     std::unique_ptr<juce::XmlElement> xmlState = juce::XmlDocument(xml).getDocumentElement();
 
-    if (xmlState.get() != nullptr) {    // FAILING HERE
+    if (xmlState.get() != nullptr) {  
         if (xmlState->hasTagName(tree.state.getType())) {
             tree.replaceState(juce::ValueTree::fromXml(*xmlState));
         }

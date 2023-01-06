@@ -125,5 +125,5 @@ private:
     juce::String* preset_names;
     juce::String* preset_filenames;
     int current_programme;
-    const int NUM_PROGRAMMES = 2;
+    const int NUM_PROGRAMMES = 21;
 };

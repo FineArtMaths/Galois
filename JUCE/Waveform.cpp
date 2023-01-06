@@ -390,7 +390,7 @@ float apply_harmonics(float sample, float val, float harm_freq, float harm_amp) 
 	return val;
 }
 
-float apply_bit_reduction(float val, float bit_depth, int mask) {
+float apply_bit_mangling(float val, float bit_depth, int mask) {
 	// Bit reduction
 	if (bit_depth > 2) {
 		float bd = MAX_BIT_DEPTH_F - abs(bit_depth) + 2;
@@ -471,14 +471,19 @@ float remap_sample(
 			val = apply_harmonics(sample, val, harm_freq, harm_amp);
 			break;
 		case ALGO_BIT:
-			val = apply_bit_reduction(val, bit_depth, mask);
+			val = apply_bit_mangling(val, bit_depth, mask);
 			break;
 		case ALGO_FOLD:
 			val = apply_fold(val, fold_amt);
 			break;
 		}
+		val = clamp(val, -1, 1);
 	}
-
-	return val;
+	if (val == val) { // check for NaN
+		return val;
+	}
+	else {
+		return 0;
+	}
 }
 

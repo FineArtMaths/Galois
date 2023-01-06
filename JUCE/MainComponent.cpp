@@ -57,7 +57,6 @@ public:
         delete(mis);
         backgroundImage.setImage(img);
         addAndMakeVisible(backgroundImage);
-        
 
         audioProcessor = ap;
         addAndMakeVisible(wf_component);
@@ -140,7 +139,7 @@ public:
 
         wf_component.setSize(getHeight() - 20, getHeight() - 20);
         wf_component.setTopLeftPosition(10, 10);
-
+                
         placeSlider(waveSlider, waveSliderLabel, 500 - knob_size, 460 - knob_size, 0.7);
         placeSlider(algoSlider, algoSliderLabel, 530 - knob_size, 420 - knob_size, 0.4);
 

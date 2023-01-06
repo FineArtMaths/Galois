@@ -16,6 +16,12 @@ public:
         wfbgImage.setImage(img);
         addAndMakeVisible(wfbgImage);
 
+        mis = new juce::MemoryInputStream(BinaryData::wf_controls_back_png, BinaryData::wf_controls_back_pngSize, false);
+        img = format.decodeImage(*mis);
+        delete(mis);
+        wf_background.setImage(img);
+        addAndMakeVisible(wf_background);
+
         proc = ap;
         setSize(400, 400);
         vDarkGreen = juce::Colour(0, 50, 0);
@@ -77,6 +83,8 @@ public:
                 xscale
             );
         }
+        wf_background.setSize(getHeight() / 2, getHeight() / 2);
+        wf_background.setTopLeftPosition(getHeight() / 2, getHeight() / 2);
 
         // Label
         wfNameLabel.setText(wf_name, juce::NotificationType::dontSendNotification);
@@ -101,5 +109,7 @@ private:
     juce::Label wfNameLabel;
     juce::ImageComponent wfbgImage;
     Proto_galoisAudioProcessor* proc;
+    juce::ImageComponent wf_background;
+
 };
 
