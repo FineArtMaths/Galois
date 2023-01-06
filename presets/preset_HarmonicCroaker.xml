@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<Galois_Parameter_Tree>
+  <PARAM id="bit_depth" value="525.2640380859375"/>
+  <PARAM id="bit_mask" value="-818.0"/>
+  <PARAM id="dry_blend" value="0.0"/>
+  <PARAM id="dry_blend_mode" value="0.0"/>
+  <PARAM id="input_level" value="1.656000018119812"/>
+  <PARAM id="output_level" value="1.0"/>
+  <PARAM id="sample_rate" value="11.0"/>
+  <PARAM id="wf_base_wave" value="0.0"/>
+  <PARAM id="wf_fold" value="-0.8640003204345703"/>
+  <PARAM id="wf_harm_amp" value="0.2400007247924805"/>
+  <PARAM id="wf_harm_freq" value="13.63599967956543"/>
+  <PARAM id="wf_power" value="0.1840000152587891"/>
+  <PARAM id="algorithm" value="3.0"/>
+  <PARAM id="biquad_cutoff" value="5.900000095367432"/>
+  <PARAM id="biquad_gain"/>
+  <PARAM id="biquad_q" value="0.7799999713897705"/>
+  <PARAM id="filter_blend" value="1.0"/>
+  <PARAM id="filter_pre" value="1.0"/>
+</Galois_Parameter_Tree>
